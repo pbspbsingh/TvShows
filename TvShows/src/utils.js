@@ -57,4 +57,5 @@ export function abortGet() {
         console.info('Aborting previous fetch call');
         abortController.abort();
     }
+    abortController = null;
 }

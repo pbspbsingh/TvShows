@@ -11,6 +11,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Home from './Home';
 import TvChannel from './TvChannel';
 import TvShow from './TvShow';
+import TvEpisode from './TvEpisode';
+
 import { COLORS } from './styles';
 
 const Stack = createNativeStackNavigator();
@@ -27,6 +29,11 @@ export default function App() {
           })} />
         <Stack.Screen name='TvShow'
           component={TvShow}
+          options={({ route }) => ({
+            headerTitle: () => <NavHeader {...route} />
+          })} />
+        <Stack.Screen name='TvEpisode'
+          component={TvEpisode}
           options={({ route }) => ({
             headerTitle: () => <NavHeader {...route} />
           })} />

@@ -21,7 +21,7 @@ impl IntoResponse for HttpError {
         });
         info!("Returning http error: {json}");
         let response = serde_json::to_string_pretty(&json)
-            .unwrap_or_else(|_| format!("Something is wrong: {}", self.inner.to_string()));
+            .unwrap_or_else(|_| format!("Something is wrong: {}", self.inner));
         (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()
     }
 }

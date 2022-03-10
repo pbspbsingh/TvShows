@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TvChannel {
@@ -26,7 +25,6 @@ pub struct TvShowEpisodes {
     pub episodes: Vec<(String, Vec<Episode>)>,
     pub cur_page: usize,
     pub last_page: usize,
-    pub expires_at: SystemTime,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]

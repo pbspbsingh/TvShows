@@ -11,6 +11,7 @@ mod error;
 mod http_util;
 mod models;
 mod tv_channels;
+mod tv_episodes;
 mod tv_shows;
 mod utils;
 
@@ -37,7 +38,11 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(tv_shows::init_tv_shows());
     let app = Router::new()
         .route("/home", get(tv_channels::channel_home))
-        .route("/episodes/:tv_channel/:soap", get(tv_shows::episodes))
+        .route("/episodes/:tv_channel/:tv_show", get(tv_shows::episodes))
+        .route(
+            "/episode/:tv_channel/:tv_show/:episode",
+            get(tv_episodes::episode_parts),
+        )
         .layer(TraceLayer::new_for_http());
 
     Server::bind(&address)

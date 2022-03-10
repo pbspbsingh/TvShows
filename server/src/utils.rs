@@ -12,6 +12,11 @@ pub fn expiry_time() -> SystemTime {
     SystemTime::now() + diff.to_std().unwrap()
 }
 
+pub fn hash(input: impl AsRef<[u8]>) -> String {
+    let hash_val = seahash::hash(input.as_ref());
+    format!("{:x}", hash_val)
+}
+
 #[cfg(test)]
 mod test {
     use super::expiry_time;

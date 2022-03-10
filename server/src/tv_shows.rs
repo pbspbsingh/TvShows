@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process;
 use std::time::{Instant, SystemTime};
 
 use anyhow::anyhow;
@@ -11,6 +12,7 @@ use once_cell::sync::OnceCell;
 use reqwest::header;
 use scraper::Html;
 use serde::{Deserialize, Serialize};
+use tokio::fs;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::Sender;
 use tokio::sync::{oneshot, RwLock};
@@ -19,15 +21,23 @@ use tracing::*;
 use crate::error::HttpError;
 use crate::http_util::{find_host, http_client, s, PARALLELISM};
 use crate::models::{Episode, TvShowEpisodes, TvSoap, VideoProvider};
-use crate::tv_channels::get_soap;
+use crate::tv_channels::get_tv_show;
 use crate::utils::{expiry_time, CACHE_FOLDER};
 
 const CACHE_FILE: &str = "tv_shows.json";
 
-static STATE: OnceCell<RwLock<HashMap<String, TvShowEpisodes>>> = OnceCell::new();
+static STATE: OnceCell<TvShowsStateWrapper> = OnceCell::new();
 
 static SENDER: OnceCell<UnboundedSender<(TvSoap, oneshot::Sender<TvShowEpisodes>)>> =
     OnceCell::new();
+
+struct TvShowsStateWrapper(RwLock<TvShowsState>);
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct TvShowsState {
+    map: HashMap<String, TvShowEpisodes>,
+    expires_at: SystemTime,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct TvShowResponse {
@@ -43,25 +53,83 @@ impl TvShowEpisodes {
     }
 }
 
+impl TvShowsStateWrapper {
+    pub async fn get_tv_show(&self, key: &str) -> Option<TvShowEpisodes> {
+        let rstate = self.0.read().await;
+        if rstate.expires_at < SystemTime::now() {
+            drop(rstate);
+            warn!("TvShows have already expired, clearing it");
+
+            let mut wstate = self.0.write().await;
+            wstate.map.clear();
+            wstate.expires_at = expiry_time();
+            drop(wstate);
+
+            self.save_state().await;
+            None
+        } else {
+            rstate.map.get(key).cloned()
+        }
+    }
+
+    pub async fn put_tv_show(&self, key: String, tv_show: TvShowEpisodes) {
+        self.0.write().await.map.insert(key, tv_show);
+        self.save_state().await;
+    }
+
+    async fn save_state(&self) {
+        async fn _save_state(path: PathBuf, state: &TvShowsState) -> anyhow::Result<()> {
+            let state = serde_json::to_string_pretty(&*state)?;
+            fs::write(path, state).await?;
+            Ok(())
+        }
+
+        debug!("Saving state to file system");
+        let path = PathBuf::from(CACHE_FOLDER).join(CACHE_FILE);
+        _save_state(path, &*self.0.read().await)
+            .await
+            .map_err(|e| {
+                error!("Failed to save state to file: {e:?}");
+                process::exit(-1)
+            })
+            .ok();
+    }
+}
+
 pub async fn init_tv_shows() {
     let path = PathBuf::from(CACHE_FOLDER).join(CACHE_FILE);
     let state = if path.exists() {
         info!("Loading TvShows state from {path:?}");
-        if let Some(state) = tokio::fs::read_to_string(&path)
-            .await
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-        {
-            state
-        } else {
-            warn!("Loading of previously saved state failed.");
-            tokio::fs::remove_file(path).await.ok();
-            HashMap::new()
+        match fs::read_to_string(&path).await.and_then(|s| {
+            serde_json::from_str(&s).map_err(|_| std::io::ErrorKind::InvalidData.into())
+        }) {
+            Ok(state) => {
+                debug!("Successfully loaded state file");
+                state
+            }
+            Err(e) => {
+                warn!("Loading of previously saved state failed: {e:?}");
+                fs::remove_file(path)
+                    .await
+                    .map_err(|e| {
+                        error!("Unable to remove the state file: {e:?}");
+                        process::exit(-1)
+                    })
+                    .ok();
+                TvShowsState {
+                    map: HashMap::new(),
+                    expires_at: expiry_time(),
+                }
+            }
         }
     } else {
-        HashMap::new()
+        info!("State file doesn't exist");
+        TvShowsState {
+            map: HashMap::new(),
+            expires_at: expiry_time(),
+        }
     };
-    STATE.set(RwLock::new(state)).unwrap();
+    STATE.set(TvShowsStateWrapper(RwLock::new(state))).ok();
 
     let (sender, mut receiver) = unbounded_channel();
     SENDER.set(sender).unwrap();
@@ -78,13 +146,14 @@ async fn process(receiver: &mut UnboundedReceiver<(TvSoap, Sender<TvShowEpisodes
         while let Some((soap, sender)) = stack.pop() {
             info!("Processing {soap:?}");
             let key = format!("{}:{}", soap.title, soap.url);
-            let soap_url = if let Some(tv_shows) = STATE.get().unwrap().read().await.get(&key) {
+            let tv_shows = STATE.get().unwrap().get_tv_show(&key).await;
+            let soap_url = if let Some(tv_shows) = tv_shows {
                 if tv_shows.cur_page == tv_shows.last_page {
                     info!(
                         "All episodes of '{}' has been downloaded already",
                         soap.title
                     );
-                    sender.send(tv_shows.clone()).ok();
+                    sender.send(tv_shows).ok();
                     continue;
                 } else {
                     format!("{}page/{}/", soap.url, tv_shows.cur_page + 1)
@@ -92,19 +161,17 @@ async fn process(receiver: &mut UnboundedReceiver<(TvSoap, Sender<TvShowEpisodes
             } else {
                 soap.url.to_owned()
             };
-            let mut tv_show_episodes = STATE
-                .get()
-                .unwrap()
-                .read()
-                .await
-                .get(&key)
-                .cloned()
-                .unwrap_or_else(|| TvShowEpisodes {
-                    episodes: Vec::new(),
-                    cur_page: 1,
-                    last_page: 1,
-                    expires_at: expiry_time(),
-                });
+            let mut tv_show_episodes =
+                STATE
+                    .get()
+                    .unwrap()
+                    .get_tv_show(&key)
+                    .await
+                    .unwrap_or_else(|| TvShowEpisodes {
+                        episodes: Vec::new(),
+                        cur_page: 1,
+                        last_page: 1,
+                    });
             info!("Loading episodes from {soap_url}");
             if let Ok((new_episodes, cur_page, last_page)) = load_episodes(&soap_url).await {
                 tv_show_episodes.episodes.extend(new_episodes);
@@ -113,12 +180,12 @@ async fn process(receiver: &mut UnboundedReceiver<(TvSoap, Sender<TvShowEpisodes
                 STATE
                     .get()
                     .unwrap()
-                    .write()
-                    .await
-                    .insert(key, tv_show_episodes.clone());
-                save_state().await.ok();
+                    .put_tv_show(key, tv_show_episodes.clone())
+                    .await;
             }
-            sender.send(tv_show_episodes).ok();
+            if sender.send(tv_show_episodes).is_err() {
+                warn!("Sending response back failed");
+            }
 
             while let Ok(req) = receiver.try_recv() {
                 stack.push(req);
@@ -139,28 +206,24 @@ pub async fn episodes(
     let tv_channel = param
         .get("tv_channel")
         .ok_or_else(|| anyhow!("Path didn't contain TvChannel"))?;
-    let soap = param
-        .get("soap")
+    let tv_show = param
+        .get("tv_show")
         .ok_or_else(|| anyhow!("Path didn't contain TvShow"))?;
     let &load_more = query_param.get("load_more").unwrap_or(&false);
-    info!("Fetching episodes for: {tv_channel} > {soap} ({load_more})");
-    let soap = get_soap(tv_channel, soap)
+    info!("Fetching episodes for: {tv_channel} > {tv_show} ({load_more})");
+    let soap = get_tv_show(tv_channel, tv_show)
         .await
-        .ok_or_else(|| anyhow!("Couldn't find Soap with {tv_channel} & {soap}"))?;
+        .ok_or_else(|| anyhow!("Couldn't find Soap with {tv_channel} & {tv_show}"))?;
 
     let key = format!("{}:{}", soap.title, soap.url);
-    if let Some(tv_shows) = STATE.get().unwrap().read().await.get(&key) {
-        if tv_shows.expires_at > SystemTime::now() {
-            info!("Got unexpired TvShows from cache");
-            if !load_more {
-                return Ok(Json(tv_shows.to_res()));
-            }
-        } else {
-            info!("TvShow has expired, removing it's entry");
-            STATE.get().unwrap().write().await.remove(&key);
-            save_state().await?;
+    let tv_show = STATE.get().unwrap().get_tv_show(&key).await;
+    if let Some(tv_shows) = tv_show {
+        info!("Got unexpired TvShows from cache");
+        if !load_more {
+            return Ok(Json(tv_shows.to_res()));
         }
     }
+
     let (sender, receiver) = oneshot::channel();
     SENDER
         .get()
@@ -188,8 +251,7 @@ async fn load_episodes(
                 let link_title = e.inner_html();
                 !(link_title.ends_with("Written Update") || link_title.contains("Preview"))
             })
-            .map(|e| e.value().attr("href"))
-            .flatten()
+            .filter_map(|e| e.value().attr("href"))
             .map(ToOwned::to_owned)
             .collect::<Vec<_>>();
         let current_page = doc
@@ -226,23 +288,23 @@ async fn load_episodes(
         .collect::<Vec<_>>()
         .await;
     let mut map = HashMap::with_capacity(episodes.len());
-    let mut filtered_episodes = Vec::with_capacity(episodes.len());
-    for episode in episodes {
-        if let Some((name, eps)) = episode {
+    let filtered_episodes = episodes
+        .into_iter()
+        .flatten()
+        .filter_map(|(name, eps)| {
             if eps.is_empty() {
-                continue;
+                return None;
             }
             let new_name = if map.contains_key(&name) {
-                let count = map[&name];
-                map.insert(name.clone(), count + 1);
-                format!("{} - {}", name, count)
+                map.insert(name.clone(), map[&name] + 1);
+                format!("{} - {}", name, map[&name])
             } else {
                 map.insert(name.clone(), 1);
                 name
             };
-            filtered_episodes.push((new_name, eps));
-        }
-    }
+            Some((new_name, eps))
+        })
+        .collect::<Vec<_>>();
     Ok((filtered_episodes, cur_page, last_page))
 }
 
@@ -309,12 +371,20 @@ async fn load_episodes_video_links(
     Ok(find_episode_video_links(&response))
 }
 
-async fn save_state() -> anyhow::Result<()> {
-    let path = PathBuf::from(CACHE_FOLDER).join(CACHE_FILE);
-    if let Some(state) = STATE.get() {
-        let state = state.read().await;
-        let state = serde_json::to_string_pretty(&*state)?;
-        tokio::fs::write(path, state).await?;
-    }
-    Ok(())
+pub async fn get_episode_parts(
+    tv_channel: &str,
+    tv_show: &str,
+    title: &str,
+) -> Option<Vec<Episode>> {
+    let soap = get_tv_show(tv_channel, tv_show).await?;
+    let state = STATE.get()?;
+    let episodes = state
+        .get_tv_show(&format!("{}:{}", soap.title, soap.url))
+        .await?;
+    let eps = episodes
+        .episodes
+        .iter()
+        .find(|(t, _)| t == title)
+        .map(|(_, eps)| eps)?;
+    Some(eps.clone())
 }

@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 import { ErrorScreen, Loader } from './CommonScreens';
 import { COLORS, STYLES } from './styles';
@@ -29,7 +30,11 @@ export default function TvShow({ route: { params: { channelTitle, title } } }) {
                 data={state.episodes}
                 focusable={true}
                 keyExtractor={(item, index) => `${index}:${item}`}
-                renderItem={({ item, index }) => <Episode index={index} title={item} />}
+                renderItem={({ item, index }) => <Episode
+                    index={index}
+                    tvChannel={channelTitle}
+                    tvShow={title}
+                    episode={item} />}
                 onEndReachedThreshold={0.1}
                 onEndReached={() => {
                     if (state.status === 'loaded' && state.has_more == true) {
@@ -45,13 +50,19 @@ export default function TvShow({ route: { params: { channelTitle, title } } }) {
     );
 }
 
-function Episode({ index, title }) {
+function Episode({ index, tvChannel, tvShow, episode }) {
     const [isFocused, focusDispatch] = useState(false);
+    const navigation = useNavigation();
     return (<TouchableOpacity
         style={[styles.eps, isFocused && STYLES.focused]}
         onFocus={() => focusDispatch(true)}
-        onBlur={() => focusDispatch(false)}>
-        <Text style={styles.episodeTitle}>{`${index + 1}. ${title}`}</Text>
+        onBlur={() => focusDispatch(false)}
+        onPress={(e) => {
+            if (e.target != null) {
+                navigation.push('TvEpisode', { tvChannel, tvShow, episode, title: episode });
+            }
+        }}>
+        <Text style={styles.episodeTitle}>{`${index + 1}. ${episode}`}</Text>
     </TouchableOpacity>);
 }
 
@@ -69,7 +80,6 @@ const styles = StyleSheet.create({
     list: {
         justifyContent: 'center',
         alignItems: 'center',
-
     },
     eps: {
         marginVertical: 3,

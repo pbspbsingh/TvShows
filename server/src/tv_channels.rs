@@ -19,7 +19,7 @@ use crate::http_util::{http_client, normalize_url, s, PARALLELISM};
 use crate::models::{TvChannel, TvSoap};
 use crate::utils::CACHE_FOLDER;
 
-const DESI_TV: &str = "https://www.desitellybox.me/";
+pub const DESI_TV: &str = "https://www.desitellybox.me/";
 
 const TV_CHANNEL_FILE: &str = "channels.json";
 
@@ -120,11 +120,7 @@ async fn download_tv_channels() -> anyhow::Result<Vec<TvChannel>> {
         .collect::<HashMap<_, _>>()
         .await;
     for tv_chn in &mut tv_channels {
-        tv_chn.icon = if let Some(icon) = icons.remove(&tv_chn.title) {
-            icon
-        } else {
-            None
-        };
+        tv_chn.icon = icons.remove(&tv_chn.title).flatten();
         if let Some(Ok(completed_soaps)) = completed_shows.remove(&tv_chn.title) {
             tv_chn.completed_soaps = completed_soaps;
         }
@@ -199,17 +195,15 @@ async fn download_icon(href: Option<String>) -> Option<String> {
 }
 
 async fn download_bytes(href: &str) -> Option<Bytes> {
-    Some(
-        http_client()
-            .get(href)
-            .header(header::REFERER, DESI_TV)
-            .send()
-            .await
-            .ok()?
-            .bytes()
-            .await
-            .ok()?,
-    )
+    http_client()
+        .get(href)
+        .header(header::REFERER, DESI_TV)
+        .send()
+        .await
+        .ok()?
+        .bytes()
+        .await
+        .ok()
 }
 
 async fn download_completed_shows(url: &str) -> anyhow::Result<Vec<TvSoap>> {
@@ -236,7 +230,7 @@ async fn download_completed_shows(url: &str) -> anyhow::Result<Vec<TvSoap>> {
     Ok(parse(&html, url))
 }
 
-pub async fn get_soap(tv_channel: &str, soap: &str) -> Option<TvSoap> {
+pub async fn get_tv_show(tv_channel: &str, soap: &str) -> Option<TvSoap> {
     if TV_CHANNEL_STATE.get().is_none() {
         channel_home().await.ok()?;
     }
