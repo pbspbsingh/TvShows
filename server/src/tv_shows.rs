@@ -97,7 +97,11 @@ impl TvShowsStateWrapper {
 }
 
 pub async fn init_tv_shows() {
-    let path = PathBuf::from(CACHE_FOLDER).join(CACHE_FILE);
+    let path = PathBuf::from(CACHE_FOLDER);
+    if !path.exists() {
+        fs::create_dir_all(&path).await.ok();
+    }
+    let path = path.join(CACHE_FILE);
     let state = if path.exists() {
         info!("Loading TvShows state from {path:?}");
         match fs::read_to_string(&path).await.and_then(|s| {
@@ -383,8 +387,8 @@ pub async fn get_episode_parts(
         .await?;
     let eps = episodes
         .episodes
-        .iter()
+        .into_iter()
         .find(|(t, _)| t == title)
         .map(|(_, eps)| eps)?;
-    Some(eps.clone())
+    Some(eps)
 }

@@ -12,6 +12,7 @@ import Home from './Home';
 import TvChannel from './TvChannel';
 import TvShow from './TvShow';
 import TvEpisode from './TvEpisode';
+import WatchTv from './WatchTv';
 
 import { COLORS } from './styles';
 
@@ -37,6 +38,7 @@ export default function App() {
           options={({ route }) => ({
             headerTitle: () => <NavHeader {...route} />
           })} />
+          <Stack.Screen name='WatchTv' component={WatchTv} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

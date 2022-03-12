@@ -1,14 +1,17 @@
-use anyhow::anyhow;
 use std::borrow::Cow;
 
+use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use scraper::Selector;
+use tokio::task;
+use tracing::debug;
 use url::{ParseError, Url};
 
 pub const PARALLELISM: usize = 8;
 
-const USER_AGENT:&str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36";
+pub const USER_AGENT: &str =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:99.0) Gecko/20100101 Firefox/99.0";
 
 static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()
@@ -34,26 +37,56 @@ pub fn find_host(url: &str) -> anyhow::Result<String> {
     Ok(format!("{}://{}", parsed.scheme(), host_name))
 }
 
-pub fn normalize_url<'a, 'b>(mut url: &'a str, host: &'b str) -> anyhow::Result<Cow<'a, str>> {
+pub fn normalize_url<'a, 'b>(url: &'a str, host: &'b str) -> anyhow::Result<Cow<'a, str>> {
     match Url::parse(url) {
         Ok(_) => Ok(Cow::Borrowed(url)),
         Err(ParseError::RelativeUrlWithoutBase) => {
-            if url.starts_with('/') {
-                url = &url[1..];
-            }
             let host_url = Url::parse(host)?;
-            let host_name = host_url
-                .host()
-                .ok_or_else(|| anyhow!("Failed to parse {host}"))?;
-            Ok(Cow::Owned(format!(
-                "{}://{}/{}",
-                host_url.scheme(),
-                host_name,
-                url
-            )))
+            Ok(Cow::Owned(if let Some(url) = url.strip_prefix("//") {
+                format!("{}://{}", host_url.scheme(), url)
+            } else if let Some(url) = url.strip_prefix('/') {
+                let host_name = host_url
+                    .host()
+                    .ok_or_else(|| anyhow!("Failed to parse {host}"))?;
+                format!("{}://{}/{}", host_url.scheme(), host_name, url)
+            } else {
+                let host = host.rfind('/').map(|idx| &host[..idx]).unwrap_or(host);
+                format!("{}/{}", host, url)
+            }))
         }
         _ => Err(anyhow!("Couldn't parse {url}")),
     }
+}
+
+pub async fn curl_get(url: &str, referer: &str) -> anyhow::Result<String> {
+    use curl::easy::{Easy, List};
+
+    fn cget(url: String, referer: String) -> anyhow::Result<String> {
+        let mut easy = Easy::new();
+        easy.url(&url)?;
+
+        let mut list = List::new();
+        list.append(&format!("User-Agent: {USER_AGENT}"))?;
+        list.append(&format!("Referer: {referer}"))?;
+        easy.http_headers(list)?;
+
+        easy.perform()?;
+
+        let mut buff = Vec::new();
+        {
+            let mut transfer = easy.transfer();
+            transfer.write_function(|data| {
+                buff.extend_from_slice(data);
+                Ok(data.len())
+            })?;
+            transfer.perform()?;
+        }
+        Ok(String::from_utf8_lossy(&buff).into_owned())
+    }
+    debug!("Curling: {url} referer: {referer}");
+    let url = url.to_string();
+    let referer = referer.to_string();
+    task::spawn_blocking(move || cget(url, referer)).await?
 }
 
 #[cfg(test)]
@@ -62,6 +95,11 @@ mod test {
 
     #[test]
     fn test_url_parser() {
+        dbg!(normalize_url(
+            "category/star-plus/star-plus-awards-concerts/",
+            "https://www.desitellybox.me/loda/lahsun",
+        ))
+        .unwrap();
         dbg!(normalize_url(
             "category/star-plus/star-plus-awards-concerts/",
             "https://www.desitellybox.me/",

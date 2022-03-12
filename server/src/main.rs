@@ -1,6 +1,6 @@
 use std::env;
 
-use axum::routing::get;
+use axum::routing::{any, get};
 use axum::{Router, Server};
 use mimalloc::MiMalloc;
 use structopt::StructOpt;
@@ -9,6 +9,7 @@ use tracing::*;
 
 mod error;
 mod http_util;
+mod media;
 mod models;
 mod tv_channels;
 mod tv_episodes;
@@ -43,6 +44,11 @@ async fn main() -> anyhow::Result<()> {
             "/episode/:tv_channel/:tv_show/:episode",
             get(tv_episodes::episode_parts),
         )
+        .route(
+            "/metadata/:folder/:file_name",
+            get(tv_episodes::get_metadata),
+        )
+        .route("/media", any(media::media))
         .layer(TraceLayer::new_for_http());
 
     Server::bind(&address)

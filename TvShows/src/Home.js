@@ -34,7 +34,7 @@ function reducer(state, action) {
 
 export default function Home() {
     const [state, dispatch] = useReducer(reducer, { status: 'loading', tvChannels: [] });
-
+    
     useEffect(() => {
         get('home')
             .then(tvChannels => dispatch({ name: 'LOADED', tvChannels }))

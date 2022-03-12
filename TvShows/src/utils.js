@@ -39,7 +39,7 @@ export async function get(path, params = {}) {
         } catch (e) {
             error = e;
             if (e instanceof Error && e.message == 'Network request failed') {
-                ToastAndroid.show(`Network error: ${HOSTS[currentHost]}, retries: ${networkRetries + 1}`, ToastAndroid.BOTTOM);
+                ToastAndroid.show(`Network error: ${HOSTS[currentHost]}, retries: ${networkRetries + 1}`, ToastAndroid.LONG);
                 networkRetries++;
                 currentHost = (++currentHost) % HOSTS.length;
                 await AsyncStorage.setItem(HOST_KEY, currentHost.toString());
@@ -50,6 +50,13 @@ export async function get(path, params = {}) {
         }
     }
     throw error;
+}
+
+export function hostname() {
+    if (currentHost == null) {
+        throw new Error('Make an fetch call first');
+    }
+    return HOSTS[currentHost];
 }
 
 export function abortGet() {

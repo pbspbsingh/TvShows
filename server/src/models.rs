@@ -35,8 +35,8 @@ pub enum VideoProvider {
     NetflixPlayer,
     Speed,
     Vkprime,
-    Embedupload,
 }
+
 impl VideoProvider {
     pub fn find(text: &str) -> Option<VideoProvider> {
         if text.contains("TVLogy") {
@@ -51,8 +51,6 @@ impl VideoProvider {
             Some(VideoProvider::Speed)
         } else if text.contains("Vkprime") {
             Some(VideoProvider::Vkprime)
-        } else if text.contains("Embedupload") {
-            Some(VideoProvider::Embedupload)
         } else {
             None
         }

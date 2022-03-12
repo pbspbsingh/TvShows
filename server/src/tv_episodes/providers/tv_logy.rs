@@ -1,15 +1,15 @@
 use anyhow::anyhow;
 use quick_js::{console, Context};
 use reqwest::header;
-use scraper::Html;
 use tokio::time::Instant;
 use tracing::*;
 
-use crate::http_util::{find_host, http_client, normalize_url, s};
+use crate::http_util::{find_host, http_client, normalize_url};
+use crate::tv_episodes::find_iframe;
 
 pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, String)> {
     let start = Instant::now();
-    let iframe_src = find_iframe(html).ok_or_else(|| anyhow!("Failed to find iframe"))?;
+    let iframe_src = find_iframe(html, referer)?;
     debug!("Got iframe src: {iframe_src}");
     let html = http_client()
         .get(&iframe_src)
@@ -24,7 +24,11 @@ pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, Str
         "Time taken to resolve TVLogy: {}",
         start.elapsed().as_millis()
     );
-    let m3u8_url = format!("{}?s={}&d=", normalize_url(&m3u8_url, &iframe_src)?, server);
+    let m3u8_url = format!(
+        "{}?s={}&d=ZGlzazM=",
+        normalize_url(&m3u8_url, &iframe_src)?,
+        server
+    );
     Ok((m3u8_url, iframe_src))
 }
 
@@ -35,14 +39,6 @@ fn eval_script(eval_script: &str) -> anyhow::Result<(String, String)> {
     let video_url = context.eval_as::<String>("videoUrl")?;
     let server = context.eval_as::<String>("server")?;
     Ok((video_url, server))
-}
-
-fn find_iframe(html: &str) -> Option<String> {
-    let doc = Html::parse_document(html);
-    doc.select(&s("iframe[allowfullscreen]"))
-        .next()
-        .and_then(|i| i.value().attr("src"))
-        .map(ToOwned::to_owned)
 }
 
 fn find_eval(html: &str) -> Option<&str> {
