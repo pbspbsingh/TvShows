@@ -41,7 +41,7 @@ fn eval_script(eval_script: &str) -> anyhow::Result<(String, String)> {
     Ok((video_url, server))
 }
 
-fn find_eval(html: &str) -> Option<&str> {
+pub fn find_eval(html: &str) -> Option<&str> {
     html.find("eval(").map(|start| {
         let text = &html[start..];
         let mut stack = 0;

@@ -1,14 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ToastAndroid } from 'react-native';
 
-// const HOSTS = ['192.168.1.2:3000', '10.3.141.1:3000'];
-const HOSTS = ['localhost:3000'];
+const HOSTS = [];
 
 const HOST_KEY = '@__host_key__';
 
 let currentHost = null;
 
 let abortController = null;
+
+if (__DEV__) {
+    HOSTS.push('localhost:3000');
+} else {
+    const prod = ['192.168.1.2:3000', '10.3.141.1:3000'];
+    HOSTS.push(...prod);
+}
 
 export async function get(path, params = {}) {
     if (currentHost == null) {
@@ -54,7 +60,7 @@ export async function get(path, params = {}) {
 
 export function hostname() {
     if (currentHost == null) {
-        throw new Error('Make an fetch call first');
+        return HOSTS[0];
     }
     return HOSTS[currentHost];
 }

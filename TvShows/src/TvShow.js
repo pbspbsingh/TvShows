@@ -69,11 +69,13 @@ function Episode({ index, tvChannel, tvShow, episode }) {
 function loadEpisodes(dispatch, tvChannel, tvShow, load_more) {
     get(`/episodes/${encodeURIComponent(tvChannel)}/${encodeURIComponent(tvShow)}`, { load_more })
         .then(res => dispatch({ status: 'loaded', ...res }))
-        .catch(e => dispatch({
-            status: 'error',
-            error: e,
-            episodes: [],
-        }));
+        .catch(e => {
+            if (e.message === 'Aborted') {
+                dispatch({ ...state, status: 'loaded' });
+            } else {
+                dispatch({ action: 'error', error: e, episodes: [] });
+            }
+        });
 }
 
 const styles = StyleSheet.create({

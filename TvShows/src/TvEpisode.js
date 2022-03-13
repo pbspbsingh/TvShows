@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
     FlatList,
     StyleSheet,
     Text,
@@ -16,9 +15,29 @@ import { abortGet, get } from './utils';
 
 export default function TvEpisode({ route: { params: { tvChannel, tvShow, episode } } }) {
     const [state, dispatch] = useState({ status: 'loading', episodeParts: [] });
+    const navigation = useNavigation();
+
     useEffect(() => {
         get(`/episode/${encodeURIComponent(tvChannel)}/${encodeURIComponent(tvShow)}/${encodeURIComponent(episode)}`)
-            .then(res => dispatch({ status: 'loaded', episodeParts: res }))
+            .then(res => {
+                if (res.length === 0) {
+                    dispatch({
+                        status: 'error',
+                        error: { message: 'Failed to download episode' },
+                    })
+                }
+                else if (res.length === 1) {
+                    navigation.replace('WatchTv', {
+                        episodeParts: res,
+                        index: 0
+                    });
+                } else {
+                    dispatch({
+                        status: 'loaded',
+                        episodeParts: res
+                    });
+                }
+            })
             .catch(e => dispatch({
                 status: 'error',
                 error: e,
@@ -35,22 +54,23 @@ export default function TvEpisode({ route: { params: { tvChannel, tvShow, episod
                 data={state.episodeParts}
                 focusable={true}
                 keyExtractor={(item, index) => `${index}:${item[0]}`}
-                renderItem={({ item, index }) => <Episode index={index} title={item[0]} videoUrl={item[1]} />}
+                renderItem={({ item, index }) => <Episode index={index} episodeParts={state.episodeParts} />}
             />}
         </View>
     );
 }
 
-function Episode({ index, title, videoUrl }) {
+function Episode({ index, episodeParts }) {
     const navigation = useNavigation();
     const [isFocused, focusDispatch] = useState(false);
+    const [title] = episodeParts[index];
     return (<TouchableOpacity
         style={[styles.eps, isFocused && STYLES.focused]}
         onFocus={() => focusDispatch(true)}
         onBlur={() => focusDispatch(false)}
         onPress={(e) => {
             if (e.target != null) {
-                navigation.push('WatchTv', { title, videoUrl });
+                navigation.push('WatchTv', { episodeParts, index });
             }
         }}>
         <Text style={styles.episodeTitle}>{`${index + 1}. ${title}`}</Text>
@@ -59,6 +79,7 @@ function Episode({ index, title, videoUrl }) {
 
 const styles = StyleSheet.create({
     list: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
