@@ -14,10 +14,10 @@ import { COLORS, STYLES } from './styles';
 import { abortGet, get } from './utils';
 
 
-export default function TvShow({ route: { params: { channelTitle, title } } }) {
+export default function TvShow({ route: { params: { tvChannel, title } } }) {
     const [state, dispatch] = useState({ status: 'loading', episodes: [] });
     useEffect(() => {
-        loadEpisodes(dispatch, channelTitle, title, false);
+        loadEpisodes(dispatch, tvChannel, title, false);
         return abortGet;
     }, []);
 
@@ -32,14 +32,14 @@ export default function TvShow({ route: { params: { channelTitle, title } } }) {
                 keyExtractor={(item, index) => `${index}:${item}`}
                 renderItem={({ item, index }) => <Episode
                     index={index}
-                    tvChannel={channelTitle}
+                    tvChannel={tvChannel}
                     tvShow={title}
                     episode={item} />}
                 onEndReachedThreshold={0.1}
                 onEndReached={() => {
                     if (state.status === 'loaded' && state.has_more == true) {
                         dispatch({ ...state, status: 'loading' });
-                        loadEpisodes(dispatch, channelTitle, title, true);
+                        loadEpisodes(dispatch, tvChannel, title, true);
                     }
                 }}
                 ListFooterComponent={() => state.status === 'loading'
@@ -60,6 +60,7 @@ function Episode({ index, tvChannel, tvShow, episode }) {
         onPress={(e) => {
             if (e.target != null) {
                 navigation.push('TvEpisode', { tvChannel, tvShow, episode, title: episode });
+                focusDispatch(false);
             }
         }}>
         <Text style={styles.episodeTitle}>{`${index + 1}. ${episode}`}</Text>

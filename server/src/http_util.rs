@@ -63,6 +63,8 @@ pub async fn curl_get(url: &str, referer: &str) -> anyhow::Result<String> {
 
     fn cget(url: String, referer: String) -> anyhow::Result<String> {
         let mut easy = Easy::new();
+        easy.ssl_verify_host(false)?;
+        easy.ssl_verify_peer(false)?;
         easy.url(&url)?;
 
         let mut list = List::new();

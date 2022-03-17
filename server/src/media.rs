@@ -40,10 +40,10 @@ static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
         header::DATE,
         header::EXPIRES,
         header::ETAG,
+        header::LAST_MODIFIED,
         header::RANGE,
         header::USER_AGENT,
         header::VARY,
-        header::LAST_MODIFIED,
     ])
 });
 
@@ -51,7 +51,7 @@ pub async fn media(
     request: Request<Body>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, HttpError> {
-    info!(
+    debug!(
         "{} media, headers= {:#?} query params= {:#?}",
         request.method(),
         request.headers(),
@@ -117,6 +117,8 @@ async fn response_to_body_via_curl(
 
     let _join: JoinHandle<anyhow::Result<()>> = thread::spawn(move || {
         let mut easy = Easy::new();
+        easy.ssl_verify_host(false)?;
+        easy.ssl_verify_peer(false)?;
         easy.url(&url)?;
 
         let mut header_list = List::new();

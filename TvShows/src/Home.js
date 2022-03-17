@@ -7,6 +7,7 @@ import {
     FlatList,
     Image,
     StyleSheet,
+    ScrollView,
     Text,
     TouchableOpacity,
     View
@@ -15,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { ErrorScreen, Loader } from './CommonScreens';
 import { COLORS, STYLES } from './styles';
-import { abortGet, get } from './utils';
+import { abortGet, get, hostname } from './utils';
 
 function reducer(state, action) {
     let newState;
@@ -27,17 +28,20 @@ function reducer(state, action) {
             newState = { ...state, status: 'done', tvChannels: action.tvChannels };
             break;
         default:
-            throw new Error(`${action} is not handled`);
+            throw new Error(`${action.name} is not handled`);
     }
     return newState;
 }
 
 export default function Home() {
-    const [state, dispatch] = useReducer(reducer, { status: 'loading', tvChannels: [] });
-    
+    const [state, dispatch] = useReducer(reducer, {
+        status: 'loading',
+        tvChannels: {},
+    });
+
     useEffect(() => {
         get('home')
-            .then(tvChannels => dispatch({ name: 'LOADED', tvChannels }))
+            .then(tvChannels => dispatch({ name: 'LOADED', tvChannels: tvChannels }))
             .catch(e => dispatch({ name: 'ERROR', error: e }));
         return abortGet;
     }, []);
@@ -45,55 +49,60 @@ export default function Home() {
     return <View style={STYLES.fullScreen}>
         {state.status == 'loading' && <Loader />}
         {state.status == 'error' && <ErrorScreen subTitle={state.errorMessage} />}
-        {state.status == 'done' && <View>
-            <FlatList
-                data={state.tvChannels}
-                keyExtractor={(tv) => tv.title}
-                numColumns={3}
-                focusable={true}
-                renderItem={({ item }) => <Channel tvChannel={item} />}
-            />
-        </View>}
+        {state.status == 'done' && <ScrollView isFocused={true}>
+            {Object.entries(state.tvChannels).map(([chnTitle, tvShows]) => <View key={chnTitle}>
+                <Text style={styles.channelTitle}>{chnTitle} ({tvShows.length})</Text>
+                {<FlatList
+                    data={tvShows}
+                    horizontal={true}
+                    keyExtractor={(tvshow) => tvshow.title}
+                    focusable={true}
+                    renderItem={({ item }) => <TvShow tvChannel={chnTitle} tvShow={item} />}
+                />}
+            </View>)}
+        </ScrollView>}
     </View>;
 }
 
-function Channel({ tvChannel }) {
-    const [isFocused, focusDispatch] = useState(false);
+function TvShow({ tvChannel, tvShow, }) {
     const navigation = useNavigation();
+    const [isFocused, focusDispatch] = useState(false);
     return (
-        <TouchableOpacity style={styles.tvShowWrapper}
+        <TouchableOpacity
+            style={[styles.tvShowWrapper, isFocused && STYLES.focused]}
             onFocus={() => focusDispatch(true)}
             onBlur={() => focusDispatch(false)}
             onPress={(e) => {
                 if (e.target != null) {
-                    navigation.push("TvChannel", tvChannel);
+                    navigation.push('TvShow', { tvChannel, title: tvShow.title, icon: `http://${hostname()}${tvShow.icon}` });
+                    focusDispatch(false);
                 }
             }}>
-            <View style={[styles.tvShow, isFocused && STYLES.focused]}>
-                <Image source={{ uri: tvChannel.icon }} style={styles.icon} />
-                <Text style={styles.title}>{tvChannel.title}</Text>
-            </View>
+            <Image source={{ uri: `http://${hostname()}${tvShow.icon}` }} style={styles.icon} />
+            <Text style={styles.tvShowTitle} numberOfLines={1}>{tvShow.title}</Text>
         </TouchableOpacity>
     );
 }
 
 const styles = StyleSheet.create({
-    tvShowWrapper: {
-        width: '33%',
-        padding: 5,
+    channelTitle: {
+        color: COLORS.primary,
+        marginBottom: 10,
+        fontSize: 16,
     },
-    tvShow: {
+    tvShowWrapper: {
+        width: 120,
+        padding: 5,
+        marginBottom: 10,
         alignItems: 'center',
-        padding: 10,
     },
     icon: {
-        height: 50,
-        width: 50,
+        height: 100,
+        width: 100,
     },
-    title: {
-        textAlign: 'center',
-        marginTop: 10,
-        fontSize: 20,
+    tvShowTitle: {
         color: COLORS.primaryLightest,
+        marginTop: 2,
+        fontSize: 12,
     },
 });

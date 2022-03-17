@@ -1,225 +1,235 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::Instant;
 
-use axum::body::Bytes;
 use axum::response::IntoResponse;
 use axum::Json;
 use futures::{stream, StreamExt};
-use once_cell::sync::OnceCell;
+use linked_hash_map::LinkedHashMap;
 use reqwest::header;
-use scraper::Html;
+use scraper::{ElementRef, Html};
 use serde::{Deserialize, Serialize};
-use tokio::fs;
-use tokio::sync::RwLock;
 use tracing::*;
 
 use crate::error::HttpError;
 use crate::http_util::{http_client, normalize_url, s, PARALLELISM};
-use crate::models::{TvChannel, TvSoap};
-use crate::utils::CACHE_FOLDER;
+use crate::models::TvShow;
+use crate::utils::encode_uri_component;
 
-pub const DESI_TV: &str = "https://www.desitellybox.me/";
+pub const DESI_TV: &str = "https://www.yodesitv.info";
 
-const TV_CHANNEL_FILE: &str = "channels.json";
-
-const EXPIRY_DURATION: Duration = Duration::from_secs(7 * 24 * 60 * 60); // A Week
-
-static TV_CHANNEL_STATE: OnceCell<TvChannelState> = OnceCell::new();
-
-struct TvChannelState {
-    tv_channels: RwLock<Vec<TvChannel>>,
-    expires_at: RwLock<SystemTime>,
-}
+const NO_OF_CHANNEL_ROWS: usize = 2;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct TvChannelResponse {
+struct TvShowResponse {
     title: String,
-    icon: Option<String>,
-    soaps: Vec<String>,
-    completed: Vec<String>,
-}
-
-impl From<&TvChannel> for TvChannelResponse {
-    fn from(tv: &TvChannel) -> Self {
-        TvChannelResponse {
-            title: tv.title.to_owned(),
-            icon: tv.icon.to_owned(),
-            soaps: tv.soaps.iter().map(|s| s.title.to_owned()).collect(),
-            completed: tv
-                .completed_soaps
-                .iter()
-                .map(|s| s.title.to_owned())
-                .collect(),
-        }
-    }
+    icon: String,
 }
 
 pub async fn channel_home() -> Result<impl IntoResponse, HttpError> {
-    async fn _channel_home() -> anyhow::Result<Json<Vec<TvChannelResponse>>> {
-        let cache_file = PathBuf::from(CACHE_FOLDER).join(TV_CHANNEL_FILE);
-        if TV_CHANNEL_STATE.get().is_none() {
-            let state = if cache_file.exists() {
-                info!("Loading channels state from {cache_file:?}");
-                let content = fs::read_to_string(&cache_file).await?;
-                let metadata = fs::metadata(&cache_file).await?;
-                TvChannelState {
-                    tv_channels: RwLock::new(serde_json::from_str(&content)?),
-                    expires_at: RwLock::new(metadata.modified()? + EXPIRY_DURATION),
-                }
-            } else {
-                warn!("Channel state file doesn't exist, initialing with dummies");
-                TvChannelState {
-                    tv_channels: RwLock::new(Vec::new()),
-                    expires_at: RwLock::new(SystemTime::now() - EXPIRY_DURATION),
-                }
-            };
-            TV_CHANNEL_STATE.set(state).ok();
-        }
-        let state = TV_CHANNEL_STATE
+    async fn _channel_home() -> anyhow::Result<LinkedHashMap<String, Vec<TvShow>>> {
+        let state = state::STATE
             .get()
             .ok_or_else(|| anyhow::anyhow!("Wtf, Channel state is not initialized"))?;
-        if *state.expires_at.read().await <= SystemTime::now() {
+        if let Some(tv_channels) = state.get_all_channels().await {
+            Ok(tv_channels)
+        } else {
             info!("TV channels list have expired, time to refresh it");
-
+            let start = Instant::now();
             let tv_channels = download_tv_channels().await?;
-            fs::write(cache_file, serde_json::to_string_pretty(&tv_channels)?).await?;
-
-            *state.expires_at.write().await = SystemTime::now() + EXPIRY_DURATION;
-            *state.tv_channels.write().await = tv_channels;
+            state.update_state(tv_channels.iter()).await?;
+            info!(
+                "Time taken to download the tv shows: {}",
+                start.elapsed().as_millis()
+            );
+            Ok(tv_channels)
         }
-        Ok(Json(
-            state
-                .tv_channels
-                .read()
-                .await
-                .iter()
-                .map(TvChannelResponse::from)
-                .collect(),
-        ))
     }
-    Ok(_channel_home().await?)
+
+    state::init().await;
+
+    let channels = _channel_home().await?;
+    let response = channels
+        .into_iter()
+        .map(|(title, tv_shows)| {
+            (
+                title,
+                tv_shows
+                    .into_iter()
+                    .map(|TvShow { title, icon, .. }| TvShowResponse { title, icon })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<LinkedHashMap<_, _>>();
+    Ok(Json(response))
 }
 
 #[instrument]
-async fn download_tv_channels() -> anyhow::Result<Vec<TvChannel>> {
-    let start = Instant::now();
+async fn download_tv_channels() -> anyhow::Result<LinkedHashMap<String, Vec<TvShow>>> {
     info!("Loading TV channels from {DESI_TV}");
-
     let html = http_client().get(DESI_TV).send().await?.text().await?;
-    let (mut tv_channels, completed_shows) = parse_channels(&html)?;
-
-    let mut icons = stream::iter(tv_channels.clone())
-        .map(|TvChannel { title, icon, .. }| async move { (title, download_icon(icon).await) })
-        .buffered(PARALLELISM)
-        .collect::<HashMap<_, _>>()
-        .await;
-    let mut completed_shows = stream::iter(completed_shows.into_iter())
-        .map(|(title, url)| async move { (title, download_completed_shows(&url).await) })
-        .buffered(PARALLELISM)
-        .collect::<HashMap<_, _>>()
-        .await;
-    for tv_chn in &mut tv_channels {
-        tv_chn.icon = icons.remove(&tv_chn.title).flatten();
-        if let Some(Ok(completed_soaps)) = completed_shows.remove(&tv_chn.title) {
-            tv_chn.completed_soaps = completed_soaps;
+    let mut tv_channels = parse_channels(&html);
+    if let Some(last_channel) = tv_channels.last() {
+        if last_channel.0.contains("View All") {
+            let (_, link) = tv_channels.pop().unwrap();
+            let html = http_client()
+                .get(&link)
+                .header(header::REFERER, DESI_TV)
+                .send()
+                .await?
+                .text()
+                .await?;
+            tv_channels.extend(parse_web_series(&html, &link));
         }
     }
+    info!("Tv channels found: {}", tv_channels.len());
+
+    let mut tv_shows_map = stream::iter(tv_channels)
+        .map(|(title, url)| async move {
+            let tv_shows = download_tv_shows(&url).await;
+            match tv_shows {
+                Ok(tv_shows) => Some((title, tv_shows)),
+                Err(e) => {
+                    warn!("Failed to download tv shows for {title}, {e}");
+                    None
+                }
+            }
+        })
+        .buffered(PARALLELISM)
+        .filter_map(|x| async { x })
+        .collect::<LinkedHashMap<_, _>>()
+        .await;
     info!(
-        "{} Channels loaded in {}ms",
-        tv_channels.len(),
-        start.elapsed().as_millis()
+        "Total Tv Shows: {}",
+        tv_shows_map.values().flatten().count()
     );
-    Ok(tv_channels)
-}
 
-fn parse_channels(html: &str) -> anyhow::Result<(Vec<TvChannel>, HashMap<String, String>)> {
-    let mut tv_channels = Vec::new();
-    let mut completed_shows = HashMap::new();
-    let doc = Html::parse_document(html);
-    for channel in doc.select(&s(".section.group .colm.span_1_of_3")) {
-        let icon_url = channel
-            .select(&s("p img"))
-            .next()
-            .and_then(|icon| icon.value().attr("src"))
-            .map(|u| normalize_url(u, DESI_TV))
-            .transpose()?;
-        let title = channel
-            .select(&s("strong"))
-            .next()
-            .map(|t| t.inner_html())
-            .unwrap_or_default();
-        let mut tv_channel = TvChannel {
-            title: title.clone(),
-            icon: icon_url.map(|t| t.into_owned()),
-            soaps: Vec::new(),
-            completed_soaps: Vec::new(),
-        };
-        for soap in channel.select(&s("ul li.cat-item a")) {
-            let (soap_title, soap_url) = (
-                soap.inner_html(),
-                soap.value().attr("href").unwrap_or("").to_owned(),
-            );
-            if soap_url.is_empty() {
-                continue;
-            }
-            let soap_url = normalize_url(&soap_url, DESI_TV)?;
-            if soap_title.trim().ends_with("Completed Shows") {
-                completed_shows.insert(title, soap_url.into_owned());
-                break;
-            } else {
-                tv_channel.soaps.push(TvSoap {
-                    title: soap_title,
-                    url: soap_url.into_owned(),
-                });
-            }
+    for (_, tv_shows) in &mut tv_shows_map {
+        for tv_show in tv_shows {
+            tv_show.icon = format!("/media?url={}", encode_uri_component(&tv_show.icon));
         }
-        tv_channels.push(tv_channel);
     }
-    Ok((tv_channels, completed_shows))
+    Ok(tv_shows_map)
 }
 
-async fn download_icon(href: Option<String>) -> Option<String> {
-    if let Some(href) = href {
-        let ext = if let Some(idx) = href.rfind('.') {
-            &href[idx + 1..]
-        } else {
-            "jpeg"
-        };
-        let bytes = download_bytes(&href).await?;
-        let res = format!("data:image/{};base64,{}", ext, base64::encode(bytes));
-        Some(res)
-    } else {
-        None
+fn parse_channels(html: &str) -> Vec<(String, String)> {
+    fn find_main_channels(a: ElementRef) -> Option<(String, String)> {
+        let mut title = None;
+        let link = normalize_url(a.value().attr("href")?, DESI_TV).ok()?;
+        let mut prev = a.parent()?.prev_sibling();
+        while let Some(p) = prev {
+            let p_class = p
+                .value()
+                .as_element()
+                .and_then(|p_ele| p_ele.attr("class"))
+                .unwrap_or("");
+            if p_class.contains("home-channel-title") {
+                let p = ElementRef::wrap(p)?;
+                let html = p.select(&s("p")).next()?.inner_html();
+                title = Some(if let Some(title) = html.strip_suffix("Shows") {
+                    title.trim().to_owned()
+                } else {
+                    html
+                });
+                break;
+            }
+            prev = p.prev_sibling();
+        }
+        Some((title?, link.into_owned()))
     }
+
+    fn find_extra_channels(div: &ElementRef) -> Option<(String, String)> {
+        let a = div.select(&s("p.small-title a")).next()?;
+        let link = normalize_url(a.value().attr("href")?, DESI_TV).ok()?;
+        Some((a.inner_html(), link.into_owned()))
+    }
+
+    let mut tv_channels = Vec::new();
+    let doc = Html::parse_document(html);
+    tv_channels.extend(
+        doc.select(&s(
+            ".post .single_page .post-content .one_sixth.column-last > a",
+        ))
+        .filter_map(find_main_channels),
+    );
+    if tv_channels.len() > NO_OF_CHANNEL_ROWS {
+        for _ in 0..NO_OF_CHANNEL_ROWS {
+            tv_channels.pop().unwrap();
+        }
+    }
+    tv_channels.extend(
+        doc.select(&s(
+            ".post .single_page .post-content .one_sixth.column-last",
+        ))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .take(NO_OF_CHANNEL_ROWS)
+        .rev()
+        .flat_map(|mut div| {
+            let mut result = Vec::new();
+            while let Some(d) = div.prev_sibling() {
+                if div
+                    .value()
+                    .classes
+                    .iter()
+                    .find(|&c| c == "home-channel-title")
+                    .is_some()
+                {
+                    break;
+                }
+                if let Some(chn) = find_extra_channels(&div) {
+                    result.push(chn);
+                }
+                div = match ElementRef::wrap(d) {
+                    Some(d) => d,
+                    None => continue,
+                };
+            }
+            result.reverse();
+            result
+        }),
+    );
+    tv_channels
 }
 
-async fn download_bytes(href: &str) -> Option<Bytes> {
-    http_client()
-        .get(href)
-        .header(header::REFERER, DESI_TV)
-        .send()
-        .await
+fn parse_web_series(html: &str, host: &str) -> Vec<(String, String)> {
+    fn parse_anchor(a: ElementRef, host: &str) -> Option<(String, String)> {
+        let link = normalize_url(a.value().attr("href")?, host).ok()?;
+        Some((a.inner_html(), link.into_owned()))
+    }
+
+    let doc = Html::parse_document(html);
+    doc.select(&s(".single_page .post-content p[style] a"))
+        .filter_map(|a| parse_anchor(a, host))
+        .collect()
+}
+
+async fn download_tv_shows(url: &str) -> anyhow::Result<Vec<TvShow>> {
+    fn parse_tv_show(div: ElementRef, host: &str) -> Option<TvShow> {
+        let a = div.select(&s("p.small-title a")).next()?;
+        let title = a.inner_html();
+        let url = normalize_url(a.value().attr("href")?, host)
+            .ok()?
+            .into_owned();
+        let icon = normalize_url(
+            div.select(&s("a img"))
+                .next()
+                .and_then(|img| img.value().attr("src"))
+                .unwrap_or(
+                    "https://www.yodesitv.info/wp-content/uploads/2016/11/no-thumbnail-370x208.jpg",
+                ),
+            host,
+        )
         .ok()?
-        .bytes()
-        .await
-        .ok()
-}
-
-async fn download_completed_shows(url: &str) -> anyhow::Result<Vec<TvSoap>> {
-    fn parse(html: &str, host_url: &str) -> Vec<TvSoap> {
+        .into_owned();
+        Some(TvShow { title, url, icon })
+    }
+    fn parse_tv_shows(html: &str, host: &str) -> Vec<TvShow> {
         let doc = Html::parse_document(html);
-        doc.select(&s(".entry_content ul li ul.children li.cat-item a"))
-            .map(|a| (a.inner_html(), a.value().attr("href")))
-            .filter_map(|(title, url)| url.map(|url| (title, url)))
-            .filter_map(|(title, url)| {
-                normalize_url(url, host_url)
-                    .map(|url| (title, url.into_owned()))
-                    .ok()
-            })
-            .map(|(title, url)| TvSoap { title, url })
+        doc.select(&s(".tab_container #tab-0-title-1 .one_fourth"))
+            .filter_map(|div| parse_tv_show(div, host))
             .collect()
     }
+    info!("Downloading {url}");
     let html = http_client()
         .get(url)
         .header(header::REFERER, DESI_TV)
@@ -227,18 +237,112 @@ async fn download_completed_shows(url: &str) -> anyhow::Result<Vec<TvSoap>> {
         .await?
         .text()
         .await?;
-    Ok(parse(&html, url))
+    Ok(parse_tv_shows(&html, url))
 }
 
-pub async fn get_tv_show(tv_channel: &str, soap: &str) -> Option<TvSoap> {
-    if TV_CHANNEL_STATE.get().is_none() {
-        channel_home().await.ok()?;
+pub async fn get_tv_show(tv_channel: &str, tv_show: &str) -> Option<TvShow> {
+    state::init().await;
+    let mut state = state::STATE.get()?.get_all_channels().await?;
+    state
+        .remove(tv_channel)
+        .and_then(|tv_chn| tv_chn.into_iter().find(|show| show.title == tv_show))
+}
+
+mod state {
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime};
+
+    use anyhow::anyhow;
+    use linked_hash_map::LinkedHashMap;
+    use once_cell::sync::OnceCell;
+    use serde::*;
+    use tokio::fs;
+    use tokio::sync::RwLock;
+    use tracing::*;
+
+    use crate::models::TvShow;
+    use crate::utils::{expiry_time, CACHE_FOLDER};
+
+    pub static STATE: OnceCell<TvChannelStateWrapper> = OnceCell::new();
+
+    const TV_CHANNEL_FILE: &str = "channels.json";
+
+    pub struct TvChannelStateWrapper(RwLock<TvChannelState>);
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    struct TvChannelState {
+        channels: LinkedHashMap<String, Vec<TvShow>>,
+        expires_at: SystemTime,
     }
-    let state = TV_CHANNEL_STATE.get()?.tv_channels.read().await;
-    let tvc = state.iter().find(|tvc| tvc.title == tv_channel)?;
-    tvc.soaps
-        .iter()
-        .chain(&tvc.completed_soaps)
-        .find(|s| s.title == soap)
-        .cloned()
+
+    impl TvChannelStateWrapper {
+        pub async fn get_all_channels(&self) -> Option<LinkedHashMap<String, Vec<TvShow>>> {
+            let read = self.0.read().await;
+            if read.expires_at >= SystemTime::now() {
+                Some(read.channels.clone())
+            } else {
+                if !read.channels.is_empty() {
+                    drop(read);
+                    self.0.write().await.channels.clear();
+                    self.dump().await.ok();
+                }
+                None
+            }
+        }
+
+        pub async fn update_state(
+            &self,
+            new_channels: impl Iterator<Item = (&String, &Vec<TvShow>)>,
+        ) -> anyhow::Result<()> {
+            let mut write = self.0.write().await;
+            write.channels.clear();
+            for (key, value) in new_channels {
+                write.channels.insert(key.to_owned(), value.to_owned());
+            }
+            write.expires_at = expiry_time() + Duration::from_secs(7 * 24 * 60 * 60);
+            drop(write);
+            self.dump().await
+        }
+
+        async fn dump(&self) -> anyhow::Result<()> {
+            let content = serde_json::to_string_pretty(&*self.0.read().await)?;
+            let file = PathBuf::from(CACHE_FOLDER).join(TV_CHANNEL_FILE);
+            if !file.exists() {
+                let parent = file
+                    .parent()
+                    .ok_or_else(|| anyhow!("ohh man, can't even read cache folder"))?;
+                if !parent.exists() {
+                    fs::create_dir_all(parent).await?;
+                }
+            }
+            fs::write(file, content).await?;
+            Ok(())
+        }
+    }
+
+    pub async fn init() {
+        if STATE.get().is_none() {
+            let file = PathBuf::from(CACHE_FOLDER).join(TV_CHANNEL_FILE);
+            let tv_channels = match fs::read_to_string(&file).await.and_then(|content| {
+                serde_json::from_str::<TvChannelState>(&content)
+                    .map_err(|_| std::io::ErrorKind::InvalidData.into())
+            }) {
+                Ok(state) => state,
+                Err(e) => {
+                    warn!("Couldn't deserialize {file:?}: {e}");
+                    if file.exists() {
+                        fs::remove_file(&file).await.ok();
+                    }
+                    TvChannelState {
+                        channels: LinkedHashMap::new(),
+                        expires_at: SystemTime::now(),
+                    }
+                }
+            };
+            STATE
+                .set(TvChannelStateWrapper(RwLock::new(tv_channels)))
+                .map_err(|_| error!("Duh, couldn't set the state once_cell"))
+                .ok();
+        }
+    }
 }
