@@ -6,7 +6,10 @@ use mimalloc::MiMalloc;
 use structopt::StructOpt;
 use tower_http::trace::TraceLayer;
 use tracing::*;
+use tracing_subscriber::fmt::time::OffsetTime;
+use tracing_subscriber::EnvFilter;
 
+mod cleanup;
 mod error;
 mod http_util;
 mod media;
@@ -21,22 +24,35 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 const RUST_LOG: &str = "RUST_LOG";
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() {
     if env::var_os(RUST_LOG).is_none() {
         env::set_var(
             RUST_LOG,
             "warn,tv_shows_server=debug,tower_http=info,hyper=info",
         );
     }
-    tracing_subscriber::fmt::init();
-    println!("Log level: {:?}", env::var_os(RUST_LOG).unwrap());
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_timer(OffsetTime::local_rfc_3339().unwrap())
+        .init();
 
+    println!(
+        "Version: {}, Log level: {:?}",
+        env!("CARGO_PKG_VERSION"),
+        env::var_os(RUST_LOG).unwrap()
+    );
+
+    _main().ok();
+}
+
+#[tokio::main]
+async fn _main() -> anyhow::Result<()> {
     let opts = Opts::from_args();
     let address = ([0, 0, 0, 0], opts.port).into();
     info!("Listing for http requests at '{address}'");
 
     tokio::spawn(tv_shows::init_tv_shows());
+    tokio::spawn(cleanup::start_cleanup());
     let app = Router::new()
         .route("/home", get(tv_channels::channel_home))
         .route("/episodes/:tv_channel/:tv_show", get(tv_shows::episodes))

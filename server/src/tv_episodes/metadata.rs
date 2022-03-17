@@ -5,11 +5,11 @@ use reqwest::header;
 use tokio::fs;
 use tracing::*;
 
-use crate::http_util::{curl_get, http_client, normalize_url};
+use crate::http_util::{http_client, normalize_url};
 use crate::models::VideoProvider;
 use crate::tv_channels::DESI_TV;
 use crate::tv_episodes::providers::{dailymotion, flash_player, speed, tv_logy};
-use crate::utils::{hash, CACHE_FOLDER};
+use crate::utils::{encode_uri_component, hash, CACHE_FOLDER};
 
 const METADATA_FILE: &str = "metadata.m3u8";
 
@@ -36,14 +36,15 @@ impl VideoProvider {
         let (m3u8_url, referer) = match self {
             VideoProvider::TVLogy => tv_logy::find_m3u8(&html, link).await?,
             VideoProvider::FlashPlayer => flash_player::find_m3u8(&html, link).await?,
-            VideoProvider::DailyMotion => dailymotion::find_m3u8(&html, link).await?,
-            VideoProvider::NetflixPlayer => dailymotion::find_m3u8(&html, link).await?,
+            VideoProvider::DailyMotion | VideoProvider::NetflixPlayer => {
+                dailymotion::find_m3u8(&html, link).await?
+            }
             VideoProvider::Speed | VideoProvider::Vkprime => speed::find_mp4(&html, link).await?,
         };
         if self.is_mp4() {
             info!("Found mp4 url: {m3u8_url} with referer: {referer}");
-            let url = form_urlencoded::byte_serialize(m3u8_url.as_bytes()).collect::<String>();
-            let url = format!("/media?hash={hsh}&url={url}&is_mp4=true");
+            let url = encode_uri_component(m3u8_url);
+            let url = format!("/media?is_mp4=true&hash={hsh}&url={url}");
 
             fs::create_dir_all(metadata_file.parent().unwrap()).await?;
             fs::write(metadata_file, &url).await?;
@@ -51,30 +52,23 @@ impl VideoProvider {
             Ok(url)
         } else {
             info!("Found M3U8 url: {m3u8_url} with referer: {referer}");
-            let m3u8_content = if let Ok(res) = http_client()
+            let m3u8_content = http_client()
                 .get(&m3u8_url)
                 .header(header::REFERER, &referer)
                 .send()
-                .await
-            {
-                res.text().await?
-            } else {
-                curl_get(&m3u8_url, &referer).await?
-            };
+                .await?
+                .text()
+                .await?;
             let video_url = find_best_video_url(&m3u8_content, &m3u8_url)?;
             info!("Found video url: {video_url}");
 
-            let m3u8_content = if let Ok(res) = http_client()
+            let m3u8_content = http_client()
                 .get(&video_url)
                 .header(header::REFERER, &referer)
                 .send()
-                .await
-            {
-                res.text().await?
-            } else {
-                curl_get(&video_url, &referer).await?
-            };
-
+                .await?
+                .text()
+                .await?;
             let m3u8_content = convert_m3u8(&m3u8_content, &video_url, &hsh)?;
             fs::create_dir_all(metadata_file.parent().unwrap()).await?;
             fs::write(&metadata_file, m3u8_content).await?;
@@ -117,7 +111,7 @@ fn convert_m3u8(m3u8: &str, host_url: &str, hash: &str) -> anyhow::Result<String
                 .next()
                 .ok_or_else(|| anyhow!("Missing next line after 'EXTINF'"))?;
             let url = normalize_url(next_line, host_url)?;
-            let url = form_urlencoded::byte_serialize(url.as_bytes()).collect::<String>();
+            let url = encode_uri_component(&*url);
             result.push(format!("/media?hash={hash}&url={url}"));
         }
     }

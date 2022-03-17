@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
-use tracing::info;
+use tracing::*;
 
 pub struct HttpError {
     inner: anyhow::Error,
@@ -18,10 +18,11 @@ impl IntoResponse for HttpError {
         let json = json!({
             "error": self.inner.to_string(),
         });
-        info!(
+        /*info!(
             "Returning http error: {json}, for error: {:#?}",
             self.inner.backtrace()
-        );
+        );*/
+        info!("Returning http error: {json}");
         let response = serde_json::to_string_pretty(&json)
             .unwrap_or_else(|_| format!("Something is wrong: {}", self.inner));
         (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()

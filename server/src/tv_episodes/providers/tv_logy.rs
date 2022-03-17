@@ -77,20 +77,20 @@ const PRELUDES: &str = r"
     };
     
     const $ = function(arg) {
-        this.ready = function(a) {
-            if (typeof a == 'function') {
-                a();
-            } else {
-                console.log(a);
-            }
-        };
-    
         if (typeof arg == 'function') {
             arg();
         } else {
-            console.log(arg);
+            console.log('In $', arg);
         }
-        return this;	
+        return {
+            ready: function(a) {
+                if (typeof a == 'function') {
+                    a();
+                } else {
+                    console.log('In $.ready', a);
+                }
+            }
+        };
     };
 ";
 

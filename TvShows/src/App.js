@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Dimensions,
   Image,
   StyleSheet,
   Text,
@@ -9,7 +10,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import Home from './Home';
-import TvChannel from './TvChannel';
 import TvShow from './TvShow';
 import TvEpisode from './TvEpisode';
 import WatchTv from './WatchTv';
@@ -23,11 +23,6 @@ export default function App() {
     <NavigationContainer theme={theme}>
       <Stack.Navigator initialRouteName='Home'>
         <Stack.Screen name='Home' component={Home} options={{ headerShown: false }} />
-        <Stack.Screen name='TvChannel'
-          component={TvChannel}
-          options={({ route }) => ({
-            headerTitle: () => <NavHeader {...route} />
-          })} />
         <Stack.Screen name='TvShow'
           component={TvShow}
           options={({ route }) => ({
@@ -38,14 +33,15 @@ export default function App() {
           options={({ route }) => ({
             headerTitle: () => <NavHeader {...route} />
           })} />
-          <Stack.Screen name='WatchTv' component={WatchTv} options={{ headerShown: false }} />
+        <Stack.Screen name='WatchTv' component={WatchTv} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
 function NavHeader({ params: { title, icon } }) {
-  return <View style={styles.navHeader}>
+  const { width } = Dimensions.get('window');
+  return <View style={[styles.navHeader, { width: width - 150 }]} >
     {icon && <Image source={{ uri: icon }} style={styles.icon} />}
     <Text style={styles.header}>{title}</Text>
   </View>;
@@ -67,8 +63,6 @@ const styles = StyleSheet.create({
   navHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    // marginLeft: -20,
-    width: '90%',
     justifyContent: 'center',
   },
   icon: {

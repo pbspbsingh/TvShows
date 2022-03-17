@@ -71,6 +71,7 @@ function Episode({ index, episodeParts }) {
         onPress={(e) => {
             if (e.target != null) {
                 navigation.push('WatchTv', { episodeParts, index });
+                focusDispatch(false);
             }
         }}>
         <Text style={styles.episodeTitle}>{`${index + 1}. ${title}`}</Text>
