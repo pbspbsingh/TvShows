@@ -17,6 +17,7 @@ static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .user_agent(USER_AGENT)
         .cookie_store(true)
+        .use_rustls_tls()
         .build()
         .unwrap()
 });

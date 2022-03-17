@@ -23,7 +23,7 @@ futures = "0"
 
 axum = "0"
 tower-http = { version = "0", features = ["trace"] }
-reqwest = { version = "0", features=["cookies", "brotli", "gzip"] }
+reqwest = { version = "0", features=["cookies", "brotli", "gzip", "rustls-tls"] }
 
 url = "2"
 form_urlencoded = "1"
@@ -31,7 +31,7 @@ scraper = "0"
 base64 = "0"
 quick-js = { version = "0", features = ["log"] }
 bytes = "1"
-curl = "0.4"
+curl = { version = "0.4", features = ["rustls"] }
 
 once_cell = "1"
 structopt = { version = "0", default-features = false }
