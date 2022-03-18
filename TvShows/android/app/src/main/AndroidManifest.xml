@@ -4,12 +4,13 @@
   <application
       android:name=".MainApplication"
       android:allowBackup="false"
-      android:banner="@mipmap/ic_launcher"
-      android:icon="@mipmap/ic_launcher"
+      android:banner="@drawable/tv_logo"
+      android:icon="@drawable/tv_icon"
       android:label="@string/app_name"
-      android:usesCleartextTraffic="true"
-      android:roundIcon="@mipmap/ic_launcher_round"
-      android:theme="@style/AppTheme">
+      android:logo="@drawable/tv_logo"
+      android:roundIcon="@drawable/tv_icon"
+      android:theme="@style/AppTheme"
+      android:usesCleartextTraffic="true">
     <activity
         android:name=".MainActivity"
         android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
@@ -25,6 +26,13 @@
     </activity>
     <activity android:name="com.facebook.react.devsupport.DevSettingsActivity" />
   </application>
+
+  <uses-feature
+      android:name="android.hardware.touchscreen"
+      android:required="false" />
+  <uses-feature
+      android:name="android.software.leanback"
+      android:required="false" />
 
   <uses-permission android:name="android.permission.INTERNET" />
 
