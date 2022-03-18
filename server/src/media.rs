@@ -13,16 +13,12 @@ use futures::{stream, Stream};
 use once_cell::sync::Lazy;
 use reqwest::header;
 use tokio::sync::mpsc::{channel, Receiver};
-use tokio::sync::RwLock;
 use tracing::*;
-use url::Url;
 
 use crate::error::HttpError;
 use crate::http_util::http_client;
 
 const CHANNEL_BUFFER: usize = 32;
-
-static BAD_HOSTS: Lazy<RwLock<HashSet<String>>> = Lazy::new(|| RwLock::new(HashSet::new()));
 
 static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
     HashSet::from([
@@ -61,14 +57,7 @@ pub async fn media(
         .get("url")
         .ok_or_else(|| anyhow!("No url found in query params"))?;
     let is_mp4 = params.get("is_mp4").map(|m| m == "true").unwrap_or(false);
-    let host_name = Url::parse(url).map_err(|_| anyhow!("Url not valid: {url}"))?;
-    let host_name = host_name
-        .host_str()
-        .ok_or_else(|| anyhow!("No host name in {url}"))?;
-    if BAD_HOSTS.read().await.contains(host_name) {
-        warn!("'{host_name}' a bad host, need to use curl");
-        return Ok(response_to_body_via_curl(url.to_owned(), request.headers().to_owned()).await?);
-    }
+    info!("{}: {}", request.method(), url);
 
     let mut req = http_client().request(request.method().clone(), url);
     for (key, val) in request.headers() {
@@ -81,7 +70,6 @@ pub async fn media(
         Ok(response_to_body(res, is_mp4).await?)
     } else {
         warn!("Need to use curl for {url}");
-        BAD_HOSTS.write().await.insert(host_name.to_owned());
         Ok(response_to_body_via_curl(url.to_owned(), request.headers().to_owned()).await?)
     }
 }
