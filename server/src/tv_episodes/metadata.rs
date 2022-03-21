@@ -5,7 +5,7 @@ use reqwest::header;
 use tokio::fs;
 use tracing::*;
 
-use crate::http_util::{curl_get, http_client, normalize_url};
+use crate::http_util::{http_client, normalize_url};
 use crate::models::VideoProvider;
 use crate::tv_channels::DESI_TV;
 use crate::tv_episodes::providers::{dailymotion, flash_player, speed, tv_logy};
@@ -52,30 +52,23 @@ impl VideoProvider {
             Ok(url)
         } else {
             info!("Found M3U8 url: {m3u8_url} with referer: {referer}");
-            let m3u8_content = if let Ok(res) = http_client()
+            let m3u8_content = http_client()
                 .get(&m3u8_url)
                 .header(header::REFERER, &referer)
                 .send()
-                .await
-            {
-                res.text().await?
-            } else {
-                curl_get(&m3u8_url, &referer).await?
-            };
+                .await?
+                .text()
+                .await?;
             let video_url = find_best_video_url(&m3u8_content, &m3u8_url)?;
             info!("Found video url: {video_url}");
 
-            let m3u8_content = if let Ok(res) = http_client()
+            let m3u8_content = http_client()
                 .get(&video_url)
                 .header(header::REFERER, &referer)
                 .send()
-                .await
-            {
-                res.text().await?
-            } else {
-                curl_get(&video_url, &referer).await?
-            };
-
+                .await?
+                .text()
+                .await?;
             let m3u8_content = convert_m3u8(&m3u8_content, &video_url, &hsh)?;
             fs::create_dir_all(metadata_file.parent().unwrap()).await?;
             fs::write(&metadata_file, m3u8_content).await?;

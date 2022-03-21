@@ -1,14 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::thread;
-use std::thread::JoinHandle;
 
 use anyhow::anyhow;
 use axum::body::{Body, Bytes};
 use axum::extract::Query;
-use axum::http::{HeaderMap, Request};
+use axum::http::Request;
 use axum::response::{IntoResponse, Response};
-use curl::easy::{Easy, List, WriteError};
 use futures::{stream, Stream};
 use once_cell::sync::Lazy;
 use reqwest::header;
@@ -65,13 +62,12 @@ pub async fn media(
             req = req.header(key, val);
         }
     }
-    if let Ok(res) = req.send().await {
-        debug!("Status: {}, header: {:#?}", res.status(), res.headers());
-        Ok(response_to_body(res, is_mp4).await?)
-    } else {
-        warn!("Need to use curl for {url}");
-        Ok(response_to_body_via_curl(url.to_owned(), request.headers().to_owned()).await?)
-    }
+    let res = req
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to fetch {url}, {e:?}"))?;
+    debug!("Status: {}, header: {:#?}", res.status(), res.headers());
+    Ok(response_to_body(res, is_mp4).await?)
 }
 
 async fn response_to_body(
@@ -94,66 +90,6 @@ async fn response_to_body(
         }
     });
     Ok(http_res.body(Body::from(body_stream(receiver)))?)
-}
-
-async fn response_to_body_via_curl(
-    url: String,
-    headers: HeaderMap,
-) -> anyhow::Result<Response<Body>> {
-    let (header_sender, mut header_receiver) = channel::<String>(CHANNEL_BUFFER);
-    let (body_sender, body_receiver) = channel::<Option<Bytes>>(CHANNEL_BUFFER);
-
-    let _join: JoinHandle<anyhow::Result<()>> = thread::spawn(move || {
-        let mut easy = Easy::new();
-        easy.ssl_verify_host(false)?;
-        easy.ssl_verify_peer(false)?;
-        easy.url(&url)?;
-
-        let mut header_list = List::new();
-        for (key, value) in headers.iter() {
-            if ALLOWED_HEADERS.contains(key.as_str()) {
-                header_list.append(&format!("{}: {}", key.as_str(), value.to_str()?))?;
-            }
-        }
-        easy.http_headers(header_list)?;
-        easy.header_function(move |header| {
-            let header_str = String::from_utf8_lossy(header).into_owned();
-            header_sender.blocking_send(header_str).is_ok()
-        })?;
-        let mut transfer = easy.transfer();
-        transfer.write_function(move |data| {
-            body_sender
-                .blocking_send(if !data.is_empty() {
-                    Some(Bytes::copy_from_slice(data))
-                } else {
-                    None
-                })
-                .map_err(|_| WriteError::Pause)?;
-            Ok(data.len())
-        })?;
-        transfer.perform()?;
-        Ok(())
-    });
-
-    let mut response = Response::builder();
-    while let Some(header) = header_receiver.recv().await {
-        if header.trim().is_empty() {
-            break;
-        }
-        let mut header_itr = header.splitn(2, ':');
-        let key = match header_itr.next() {
-            Some(key) => key.trim(),
-            None => continue,
-        };
-        let value = match header_itr.next() {
-            Some(val) => val.trim(),
-            None => continue,
-        };
-        if !(key.is_empty() || value.is_empty()) {
-            response = response.header(key, value);
-        }
-    }
-    Ok(response.body(Body::from(body_stream(body_receiver)))?)
 }
 
 fn body_stream(

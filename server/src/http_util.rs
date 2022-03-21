@@ -4,8 +4,6 @@ use anyhow::anyhow;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use scraper::Selector;
-use tokio::task;
-use tracing::debug;
 use url::{ParseError, Url};
 
 pub const PARALLELISM: usize = 8;
@@ -57,39 +55,6 @@ pub fn normalize_url<'a, 'b>(url: &'a str, host: &'b str) -> anyhow::Result<Cow<
         }
         _ => Err(anyhow!("Couldn't parse {url}")),
     }
-}
-
-pub async fn curl_get(url: &str, referer: &str) -> anyhow::Result<String> {
-    use curl::easy::{Easy, List};
-
-    fn cget(url: String, referer: String) -> anyhow::Result<String> {
-        let mut easy = Easy::new();
-        easy.ssl_verify_host(false)?;
-        easy.ssl_verify_peer(false)?;
-        easy.url(&url)?;
-
-        let mut list = List::new();
-        list.append(&format!("User-Agent: {USER_AGENT}"))?;
-        list.append(&format!("Referer: {referer}"))?;
-        easy.http_headers(list)?;
-
-        easy.perform()?;
-
-        let mut buff = Vec::new();
-        {
-            let mut transfer = easy.transfer();
-            transfer.write_function(|data| {
-                buff.extend_from_slice(data);
-                Ok(data.len())
-            })?;
-            transfer.perform()?;
-        }
-        Ok(String::from_utf8_lossy(&buff).into_owned())
-    }
-    debug!("Curling: {url} referer: {referer}");
-    let url = url.to_string();
-    let referer = referer.to_string();
-    task::spawn_blocking(move || cget(url, referer)).await?
 }
 
 #[cfg(test)]
