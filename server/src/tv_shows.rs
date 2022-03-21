@@ -302,10 +302,13 @@ impl VideoProvider {
 }
 
 fn fix_title(title: &str) -> String {
-    let title = title.trim().replace("Watch Online", "");
+    let title = title
+        .trim()
+        .replace("Watch Online", "")
+        .replace("&amp;", "&");
     let title = title.trim();
-    let title = title.strip_suffix("–").unwrap_or(title).trim();
-    let title = title.strip_suffix("-").unwrap_or(title).trim();
+    let title = title.strip_suffix('–').unwrap_or(title).trim();
+    let title = title.strip_suffix('-').unwrap_or(title).trim();
     WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
 }
 

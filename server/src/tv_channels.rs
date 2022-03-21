@@ -18,6 +18,8 @@ pub const DESI_TV: &str = "https://www.yodesitv.info";
 
 const NO_OF_CHANNEL_ROWS: usize = 2;
 
+const BANNED_CHANNELS: &[&str] = &["Star Jalsha", "Star Pravah", "Star Vijay", "Bindass TV"];
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct TvShowResponse {
     title: String,
@@ -80,6 +82,10 @@ async fn download_tv_channels() -> anyhow::Result<LinkedHashMap<String, Vec<TvSh
             tv_channels.extend(parse_web_series(&html, &link));
         }
     }
+    let tv_channels = tv_channels
+        .into_iter()
+        .filter(|(title, _)| !BANNED_CHANNELS.contains(&(title as &str)))
+        .collect::<Vec<_>>();
     info!("Tv channels found: {}", tv_channels.len());
 
     let mut tv_shows_map = stream::iter(tv_channels)
@@ -169,10 +175,9 @@ fn parse_channels(html: &str) -> Vec<(String, String)> {
             while let Some(d) = div.prev_sibling() {
                 if div
                     .value()
-                    .classes
-                    .iter()
-                    .find(|&c| c == "home-channel-title")
-                    .is_some()
+                    .attr("class")
+                    .unwrap_or("")
+                    .contains("home-channel-title")
                 {
                     break;
                 }

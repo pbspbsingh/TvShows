@@ -15,22 +15,27 @@ const DO_NOT_DELETE_FILES: &[&str] = &[TV_CHANNEL_FILE, TV_SHOWS_FILE];
 pub async fn start_cleanup() -> ! {
     async fn cleanup() -> anyhow::Result<()> {
         info!("Running cleanup task...");
-        dfs(PathBuf::from(CACHE_FOLDER)).await?;
+        let deleted_count = dfs(PathBuf::from(CACHE_FOLDER)).await?;
+        if deleted_count > 0 {
+            info!("Cleaned {deleted_count} expired files/folders");
+        }
         Ok(())
     }
 
-    fn dfs(path: PathBuf) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
+    fn dfs(path: PathBuf) -> Pin<Box<dyn Future<Output = anyhow::Result<u32>> + Send>> {
         Box::pin(async {
+            let mut count = 0;
             let metadata = fs::metadata(&path).await?;
             if metadata.is_dir() {
                 let mut read_dir = fs::read_dir(&path).await?;
                 while let Some(child) = read_dir.next_entry().await? {
-                    dfs(child.path()).await?;
+                    count += dfs(child.path()).await?;
                 }
                 let mut read_dir = fs::read_dir(&path).await?;
                 if read_dir.next_entry().await?.is_none() {
                     debug!("Deleting empty dir: {path:?}");
                     fs::remove_dir(path).await?;
+                    count += 1;
                 }
             } else if metadata.is_file() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -39,10 +44,11 @@ pub async fn start_cleanup() -> ! {
                     {
                         debug!("Deleting file: {path:?}");
                         fs::remove_file(path).await?;
+                        count += 1;
                     }
                 }
             }
-            Ok(())
+            Ok(count)
         })
     }
 
@@ -52,7 +58,7 @@ pub async fn start_cleanup() -> ! {
             .map_err(|e| warn!("Cleanup task failed: {e}"))
             .ok();
         let sleep_dur = expiry_time().duration_since(SystemTime::now()).unwrap();
-        info!("Cleanup task sleeping for {}", fmt(sleep_dur));
+        debug!("Cleanup task sleeping for {}", fmt(sleep_dur));
         time::sleep(sleep_dur).await;
     }
 }
