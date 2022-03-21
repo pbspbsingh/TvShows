@@ -20,8 +20,7 @@ const SKIP_DURATION = 15;
 export default function WatchTv({ route: { params: { episodeParts, index } } }) {
     const [title, videoUrl] = episodeParts[index];
     const [durationState, durationDispath] = useState({ current: 0, total: 0 });
-    let currentTime = 0;
-    let totalDuration = 0;
+    const [pauseState, pauseDispatch] = useState(false);
 
     const navigation = useNavigation();
     const playerRef = useRef(null);
@@ -52,6 +51,7 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                     break;
                 }
                 case 85: { // play|pause
+                    pauseDispatch(!pauseState);
                     break;
                 }
                 case 89: { // Play previous
@@ -75,7 +75,7 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
             }
         });
         return () => eventListener.remove();
-    }, []);
+    }, [pauseState]);
 
     return (
         <View style={[STYLES.fullScreen, { padding: 0 }]}>
@@ -83,6 +83,7 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                 ref={playerRef}
                 style={styles.video}
                 controls={false}
+                paused={pauseState}
                 resizeMode='contain'
                 focusable={false}
                 source={{ uri: `http://${hostname()}${videoUrl}` }}
@@ -115,8 +116,26 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                     }} />
                 <Text style={styles.textLeft}>{humanReadable(durationState.total - durationState.current)}</Text>
             </View>}
+            {pauseState && <Text style={styles.pauseIcon}>⏸</Text>}
         </View>
     );
+}
+
+function humanReadable(timeInSecs) {
+    let time = parseInt(timeInSecs);
+    const hours = parseInt(time / 60 / 60);
+    time -= hours * 60 * 60;
+    const minutes = parseInt(time / 60);
+    time -= minutes * 60;
+    const arr = [];
+    if (hours > 0) {
+        arr.push(hours);
+    }
+    arr.push(minutes);    
+    arr.push(time);
+    return arr.map(String)
+        .map(num => num.length == 1 ? '0' + num : num)
+        .join(':');
 }
 
 const styles = StyleSheet.create({
@@ -138,21 +157,10 @@ const styles = StyleSheet.create({
         color: COLORS.primaryLightest,
         marginRight: 15,
     },
+    pauseIcon: {
+        position: 'absolute',
+        left: '50%',
+        fontSize: 40,
+        opacity: .75,
+    }
 });
-
-function humanReadable(timeInSecs) {
-    let time = parseInt(timeInSecs);
-    const hours = parseInt(time / 60 / 60);
-    time -= hours * 60 * 60;
-    const minutes = parseInt(time / 60);
-    time -= minutes * 60;
-    const arr = [];
-    if (hours > 0) {
-        arr.push(hours);
-    }
-    if (minutes > 0) {
-        arr.push(minutes);
-    }
-    arr.push(time);
-    return arr.join(':');
-}
