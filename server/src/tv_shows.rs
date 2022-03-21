@@ -6,7 +6,8 @@ use axum::extract::{Path, Query};
 use axum::response::IntoResponse;
 use axum::Json;
 use futures::{stream, StreamExt};
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
+use regex::Regex;
 use reqwest::header;
 use scraper::{ElementRef, Html};
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,8 @@ use crate::tv_channels::get_tv_show;
 
 static SENDER: OnceCell<UnboundedSender<(TvShow, oneshot::Sender<TvShowEpisodes>)>> =
     OnceCell::new();
+
+static WHITE_SPACE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct TvShowResponse {
@@ -242,11 +245,7 @@ async fn load_episodes_video_links(
             .next()
             .map(|t| t.inner_html())
             .unwrap_or_else(|| String::from("NA"));
-        let title = title.trim();
-        let title = title
-            .strip_suffix("Watch Online")
-            .unwrap_or(title)
-            .to_owned();
+        let title = fix_title(&title);
         let parts = doc
             .select(&s(".thecontent div.buttons.btn_green"))
             .filter_map(find_parts)
@@ -300,6 +299,14 @@ impl VideoProvider {
             None
         }
     }
+}
+
+fn fix_title(title: &str) -> String {
+    let title = title.trim().replace("Watch Online", "");
+    let title = title.trim();
+    let title = title.strip_suffix("–").unwrap_or(title).trim();
+    let title = title.strip_suffix("-").unwrap_or(title).trim();
+    WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
 }
 
 mod state {
@@ -410,5 +417,16 @@ mod state {
             }
         };
         STATE.set(TvShowsStateWrapper(RwLock::new(state))).ok();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::fix_title;
+
+    #[test]
+    fn test_title() {
+        println!("{}", fix_title("Whos Your Daddy Watch Online – Episode 12"));
+        println!("{}", fix_title("Whos Your Daddy   Watch Online – "));
     }
 }
