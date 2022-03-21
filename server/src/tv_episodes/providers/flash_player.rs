@@ -63,34 +63,7 @@ struct Source {
 
 #[cfg(test)]
 mod test {
-    use curl::easy::{Easy, List};
-
     use crate::http_util::http_client;
-
-    #[test]
-    fn test_m8u8_url() -> anyhow::Result<()> {
-        let mut easy = Easy::new();
-        easy.ssl_verify_peer(false)?;
-        easy.url("https://feisty.tvlogy.to/8840TxWGsTpOWPURVG55yQT6cCVZ5YNRklWvmlaSs1PFhAZyQcLQLXF3WqjvORCcw8M1Vdy6sGUmypMv146Gfg/mG2iEbySZQZtUk9WAsUEWrAGNvwaYGdzq3MF6DsA1kk/video.m3u8")?;
-
-        let mut list = List::new();
-        list.append("Referer: https://flow.tvglobe.me/embed23/7HgqLappYZv1UHn/")?;
-        easy.http_headers(list)?;
-        easy.perform()?;
-        println!("{}", easy.response_code()?);
-
-        let mut buff = Vec::new();
-        {
-            let mut transfer = easy.transfer();
-            transfer.write_function(|data| {
-                buff.extend_from_slice(data);
-                Ok(data.len())
-            })?;
-            transfer.perform()?;
-        }
-        println!("{}", String::from_utf8_lossy(&buff));
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_video_url() -> anyhow::Result<()> {
