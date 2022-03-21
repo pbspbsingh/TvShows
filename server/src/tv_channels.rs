@@ -261,11 +261,9 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShow;
-    use crate::utils::{expiry_time, CACHE_FOLDER};
+    use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE};
 
     pub static STATE: OnceCell<TvChannelStateWrapper> = OnceCell::new();
-
-    const TV_CHANNEL_FILE: &str = "channels.json";
 
     pub struct TvChannelStateWrapper(RwLock<TvChannelState>);
 

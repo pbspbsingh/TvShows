@@ -7,6 +7,7 @@ use structopt::StructOpt;
 use tower_http::trace::TraceLayer;
 use tracing::*;
 
+mod cleanup;
 mod error;
 mod http_util;
 mod media;
@@ -37,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Listing for http requests at '{address}'");
 
     tokio::spawn(tv_shows::init_tv_shows());
+    tokio::spawn(cleanup::start_cleanup());
     let app = Router::new()
         .route("/home", get(tv_channels::channel_home))
         .route("/episodes/:tv_channel/:tv_show", get(tv_shows::episodes))

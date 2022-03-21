@@ -322,11 +322,9 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShowEpisodes;
-    use crate::utils::{expiry_time, CACHE_FOLDER};
+    use crate::utils::{expiry_time, CACHE_FOLDER, TV_SHOWS_FILE};
 
     pub(super) static STATE: OnceCell<TvShowsStateWrapper> = OnceCell::new();
-
-    const CACHE_FILE: &str = "tv_shows.json";
 
     pub(super) struct TvShowsStateWrapper(RwLock<TvShowsState>);
 
@@ -368,7 +366,7 @@ mod state {
             }
 
             debug!("Saving state to file system");
-            let path = PathBuf::from(CACHE_FOLDER).join(CACHE_FILE);
+            let path = PathBuf::from(CACHE_FOLDER).join(TV_SHOWS_FILE);
             _save_state(path, &*self.0.read().await)
                 .await
                 .map_err(|e| {
@@ -384,7 +382,7 @@ mod state {
         if !path.exists() {
             fs::create_dir_all(&path).await.ok();
         }
-        let path = path.join(CACHE_FILE);
+        let path = path.join(TV_SHOWS_FILE);
         let state = if path.exists() {
             info!("Loading TvShows state from {path:?}");
             match fs::read_to_string(&path).await.and_then(|s| {

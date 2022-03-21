@@ -4,6 +4,10 @@ use chrono::{Datelike, Duration, Local, NaiveDate};
 
 pub const CACHE_FOLDER: &str = "cache";
 
+pub const TV_CHANNEL_FILE: &str = "channels.json";
+
+pub const TV_SHOWS_FILE: &str = "tv_shows.json";
+
 pub fn expiry_time() -> SystemTime {
     let now = Local::now().naive_local();
     let expiry_time = NaiveDate::from_ymd(now.year(), now.month(), now.day()).and_hms(1, 30, 0);
