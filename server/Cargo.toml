@@ -16,7 +16,7 @@ chrono = "0"
 seahash = "0"
 
 tracing = "0"
-tracing-subscriber = { version = "0", features = ["env-filter"] }
+tracing-subscriber = { version = "0", features = ["env-filter", "time", "local-time"] }
 
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync"] }
 futures = "0"

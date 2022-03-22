@@ -34,19 +34,28 @@ pub async fn find_mp4(html: &str, referer: &str) -> anyhow::Result<(String, Stri
 fn eval_script(eval_script: &str) -> anyhow::Result<String> {
     let context = Context::builder().console(console::LogConsole).build()?;
     context.eval(PRELUDE)?;
-    context.eval(eval_script).ok();
+    context.eval(eval_script)?;
     let video_url = context.eval_as::<String>("source")?;
     Ok(video_url)
 }
 
 const PRELUDE: &str = r"
     let source = null;
+    
     function jwplayer() {
-        this.setup = function(config) {
-            const arr = config.sources.sort((a, b) => parseInt(b.label) - parseInt(a.label));
-            source = arr[0].file;
+        return {
+            setup: function(config) {
+                const arr = config.sources.sort((a, b) => parseInt(b.label) - parseInt(a.label));
+                console.log(arr);
+                source = arr[0].file;
+    
+                return {
+                    addButton: () => console.log('called setup.addButton'),
+                    seek: () => console.log('called setup.seek'),
+                };
+            },
+            on: () => console.log('called jwplayer.on'),
         };
-        return this;
     }
 ";
 

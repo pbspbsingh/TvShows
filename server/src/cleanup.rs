@@ -6,11 +6,9 @@ use std::time::{Duration, SystemTime};
 use tokio::{fs, time};
 use tracing::*;
 
-use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE, TV_SHOWS_FILE};
+use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE, TV_SHOWS_FILE, WEEK};
 
-const EXPIRY_DURATION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
-
-const DO_NOT_DELETE_FILES: &[&str] = &[TV_CHANNEL_FILE, TV_SHOWS_FILE];
+const DO_NOT_DELETE_FILES: &[&str] = &[CACHE_FOLDER, TV_CHANNEL_FILE, TV_SHOWS_FILE];
 
 pub async fn start_cleanup() -> ! {
     async fn cleanup() -> anyhow::Result<()> {
@@ -33,23 +31,31 @@ pub async fn start_cleanup() -> ! {
                 }
                 let mut read_dir = fs::read_dir(&path).await?;
                 if read_dir.next_entry().await?.is_none() {
-                    debug!("Deleting empty dir: {path:?}");
-                    fs::remove_dir(path).await?;
-                    count += 1;
+                    count += delete(path).await?;
                 }
             } else if metadata.is_file() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if !DO_NOT_DELETE_FILES.contains(&name)
-                        && metadata.modified()?.elapsed()? > EXPIRY_DURATION
-                    {
-                        debug!("Deleting file: {path:?}");
-                        fs::remove_file(path).await?;
-                        count += 1;
-                    }
+                if metadata.modified()?.elapsed()? > WEEK {
+                    count += delete(path).await?;
                 }
             }
             Ok(count)
         })
+    }
+
+    async fn delete(path: PathBuf) -> anyhow::Result<u32> {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if DO_NOT_DELETE_FILES.contains(&name) {
+            return Ok(0);
+        }
+
+        if path.is_dir() {
+            debug!("Deleting empty dir: {path:?}");
+            fs::remove_dir(path).await?;
+        } else {
+            debug!("Deleting file: {path:?}",);
+            fs::remove_file(path).await?;
+        }
+        Ok(1)
     }
 
     loop {

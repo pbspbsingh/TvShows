@@ -61,7 +61,7 @@ struct Source {
     file: String,
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod test {
     use crate::http_util::http_client;
 
@@ -73,4 +73,4 @@ mod test {
         println!("Status: {}", response.is_err());
         Ok(())
     }
-}
+}*/

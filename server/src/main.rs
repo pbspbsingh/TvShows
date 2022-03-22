@@ -6,6 +6,8 @@ use mimalloc::MiMalloc;
 use structopt::StructOpt;
 use tower_http::trace::TraceLayer;
 use tracing::*;
+use tracing_subscriber::fmt::time::OffsetTime;
+use tracing_subscriber::EnvFilter;
 
 mod cleanup;
 mod error;
@@ -22,17 +24,24 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 const RUST_LOG: &str = "RUST_LOG";
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() {
     if env::var_os(RUST_LOG).is_none() {
         env::set_var(
             RUST_LOG,
             "warn,tv_shows_server=debug,tower_http=info,hyper=info",
         );
     }
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_timer(OffsetTime::local_rfc_3339().unwrap())
+        .init();
     println!("Log level: {:?}", env::var_os(RUST_LOG).unwrap());
 
+    _main().ok();
+}
+
+#[tokio::main]
+async fn _main() -> anyhow::Result<()> {
     let opts = Opts::from_args();
     let address = ([0, 0, 0, 0], opts.port).into();
     info!("Listing for http requests at '{address}'");

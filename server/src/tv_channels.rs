@@ -255,7 +255,7 @@ pub async fn get_tv_show(tv_channel: &str, tv_show: &str) -> Option<TvShow> {
 
 mod state {
     use std::path::PathBuf;
-    use std::time::{Duration, SystemTime};
+    use std::time::SystemTime;
 
     use anyhow::anyhow;
     use linked_hash_map::LinkedHashMap;
@@ -266,7 +266,7 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShow;
-    use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE};
+    use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE, WEEK};
 
     pub static STATE: OnceCell<TvChannelStateWrapper> = OnceCell::new();
 
@@ -302,7 +302,7 @@ mod state {
             for (key, value) in new_channels {
                 write.channels.insert(key.to_owned(), value.to_owned());
             }
-            write.expires_at = expiry_time() + Duration::from_secs(7 * 24 * 60 * 60);
+            write.expires_at = expiry_time() + WEEK;
             drop(write);
             self.dump().await
         }
