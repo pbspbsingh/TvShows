@@ -18,15 +18,17 @@ import { hostname } from './utils';
 const SKIP_DURATION = 15;
 
 export default function WatchTv({ route: { params: { episodeParts, index } } }) {
+    const eventEmitter = new NativeEventEmitter(NativeModules.KeyBoardModule);
+
     const [title, videoUrl] = episodeParts[index];
     const [durationState, durationDispath] = useState({ current: 0, total: 0 });
     const [pauseState, pauseDispatch] = useState(false);
 
     const navigation = useNavigation();
     const playerRef = useRef(null);
+
     useEffect(() => {
         ToastAndroid.show(title, ToastAndroid.LONG);
-        const eventEmitter = new NativeEventEmitter(NativeModules.KeyBoardModule);
         const eventListener = eventEmitter.addListener('keyEvent', (event) => {
             let { current: player } = playerRef;
             switch (event.keyCode) {
@@ -104,7 +106,7 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                 <Text style={styles.textCurrent}>{humanReadable(durationState.current)}</Text>
                 <Slider style={{ flex: 1 }}
                     focusable={true}
-                    step={15}
+                    step={SKIP_DURATION}
                     minimumValue={0}
                     value={durationState.current}
                     maximumValue={durationState.total}
@@ -131,7 +133,7 @@ function humanReadable(timeInSecs) {
     if (hours > 0) {
         arr.push(hours);
     }
-    arr.push(minutes);    
+    arr.push(minutes);
     arr.push(time);
     return arr.map(String)
         .map(num => num.length == 1 ? '0' + num : num)
@@ -145,9 +147,10 @@ const styles = StyleSheet.create({
     },
     seekbar: {
         position: 'absolute',
-        bottom: -2,
+        bottom: -1,
         width: '100%',
         flexDirection: 'row',
+        alignItems: 'flex-end',
     },
     textCurrent: {
         color: COLORS.primaryLightest,
@@ -155,12 +158,12 @@ const styles = StyleSheet.create({
     },
     textLeft: {
         color: COLORS.primaryLightest,
-        marginRight: 15,
+        marginRight: 10,
     },
     pauseIcon: {
         position: 'absolute',
         left: '50%',
         fontSize: 40,
         opacity: .75,
-    }
+    },
 });
