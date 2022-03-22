@@ -246,10 +246,11 @@ async fn load_episodes_video_links(
             .map(|t| t.inner_html())
             .unwrap_or_else(|| String::from("NA"));
         let title = fix_title(&title);
-        let parts = doc
+        let mut parts = doc
             .select(&s(".thecontent div.buttons.btn_green"))
             .filter_map(find_parts)
             .collect::<Vec<_>>();
+        parts.sort_by_key(|e| e.provider.priority());
         (title, parts)
     }
     let response = http_client()
@@ -280,6 +281,17 @@ pub async fn get_episode_parts(
     Some(eps)
 }
 
+fn fix_title(title: &str) -> String {
+    let title = title
+        .trim()
+        .replace("Watch Online", "")
+        .replace("&amp;", "&");
+    let title = title.trim();
+    let title = title.strip_suffix('–').unwrap_or(title).trim();
+    let title = title.strip_suffix('-').unwrap_or(title).trim();
+    WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
+}
+
 impl VideoProvider {
     pub fn find(text: &str) -> Option<VideoProvider> {
         let text = text.to_uppercase();
@@ -299,17 +311,17 @@ impl VideoProvider {
             None
         }
     }
-}
 
-fn fix_title(title: &str) -> String {
-    let title = title
-        .trim()
-        .replace("Watch Online", "")
-        .replace("&amp;", "&");
-    let title = title.trim();
-    let title = title.strip_suffix('–').unwrap_or(title).trim();
-    let title = title.strip_suffix('-').unwrap_or(title).trim();
-    WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
+    pub fn priority(&self) -> i32 {
+        match self {
+            VideoProvider::TVLogy => 1,
+            VideoProvider::DailyMotion => 2,
+            VideoProvider::NetflixPlayer => 3,
+            VideoProvider::FlashPlayer => 4,
+            VideoProvider::Speed => 5,
+            VideoProvider::Vkprime => 6,
+        }
+    }
 }
 
 mod state {

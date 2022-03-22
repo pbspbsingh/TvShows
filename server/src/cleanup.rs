@@ -33,10 +33,8 @@ pub async fn start_cleanup() -> ! {
                 if read_dir.next_entry().await?.is_none() {
                     count += delete(path).await?;
                 }
-            } else if metadata.is_file() {
-                if metadata.modified()?.elapsed()? > WEEK {
-                    count += delete(path).await?;
-                }
+            } else if metadata.is_file() && metadata.modified()?.elapsed()? > WEEK {
+                count += delete(path).await?;
             }
             Ok(count)
         })

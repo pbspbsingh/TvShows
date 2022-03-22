@@ -247,10 +247,7 @@ async fn download_tv_shows(url: &str) -> anyhow::Result<Vec<TvShow>> {
 
 pub async fn get_tv_show(tv_channel: &str, tv_show: &str) -> Option<TvShow> {
     state::init().await;
-    let mut state = state::STATE.get()?.get_all_channels().await?;
-    state
-        .remove(tv_channel)
-        .and_then(|tv_chn| tv_chn.into_iter().find(|show| show.title == tv_show))
+    state::STATE.get()?.get_tv_show(tv_channel, tv_show).await
 }
 
 mod state {
@@ -291,6 +288,16 @@ mod state {
                 }
                 None
             }
+        }
+
+        pub async fn get_tv_show(&self, tv_channel: &str, tv_show: &str) -> Option<TvShow> {
+            self.0
+                .read()
+                .await
+                .channels
+                .get(tv_channel)
+                .and_then(|v| v.iter().find(|show| show.title == tv_show))
+                .cloned()
         }
 
         pub async fn update_state(
