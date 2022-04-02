@@ -36,6 +36,7 @@ static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
         header::EXPIRES,
         header::ETAG,
         header::LAST_MODIFIED,
+        header::PRAGMA,
         header::RANGE,
         header::VARY,
     ])
@@ -93,8 +94,8 @@ async fn response_to_body(
                 debug!("Done reading bytes from remote server");
                 break;
             }
-            if let Err(e) = sender.try_send(bytes) {
-                match e {
+            if let Err(err) = sender.try_send(bytes) {
+                match err {
                     TrySendError::Full(bytes) => {
                         debug!(
                             "Buffer is full, current speed of reading: {}",

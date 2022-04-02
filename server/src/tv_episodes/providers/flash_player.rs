@@ -31,8 +31,7 @@ pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, Str
 pub fn find_source(text: &str) -> Option<&str> {
     text.find("sources:").map(|idx| {
         let text = &text[idx..];
-        let mut start = 0;
-        let mut end = 0;
+        let (mut start, mut end) = (0, 0);
         for (idx, ch) in text.char_indices() {
             if ch == '{' {
                 start = idx;
@@ -42,13 +41,13 @@ pub fn find_source(text: &str) -> Option<&str> {
         let text = &text[start..];
         let mut stack = 0;
         for (idx, ch) in text.char_indices() {
-            end = idx;
-            if ch == '{' {
-                stack += 1;
-            } else if ch == '}' {
-                stack -= 1;
-            }
+            stack += match ch {
+                '{' => 1,
+                '}' => -1,
+                _ => continue,
+            };
             if stack == 0 {
+                end = idx;
                 break;
             }
         }

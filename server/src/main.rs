@@ -35,7 +35,12 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .with_timer(OffsetTime::local_rfc_3339().unwrap())
         .init();
-    println!("Log level: {:?}", env::var_os(RUST_LOG).unwrap());
+
+    println!(
+        "Version: {}, Log level: {:?}",
+        env!("CARGO_PKG_VERSION"),
+        env::var_os(RUST_LOG).unwrap()
+    );
 
     _main().ok();
 }
