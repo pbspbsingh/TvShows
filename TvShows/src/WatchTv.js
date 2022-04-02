@@ -88,6 +88,7 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                 paused={pauseState}
                 resizeMode='contain'
                 focusable={false}
+                fullscreen={true}
                 source={{ uri: `http://${hostname()}${videoUrl}` }}
                 onError={e => ToastAndroid.show('Playback Error, please go back and try again', ToastAndroid.LONG)}
                 onProgress={(evt) => durationDispath({
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
     },
     seekbar: {
         position: 'absolute',
-        bottom: -1,
+        bottom: 0,
         width: '100%',
         flexDirection: 'row',
         alignItems: 'flex-end',

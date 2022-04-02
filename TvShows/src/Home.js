@@ -4,6 +4,7 @@ import React, {
     useReducer
 } from 'react';
 import {
+    AppState,
     FlatList,
     Image,
     StyleSheet,
@@ -40,11 +41,23 @@ export default function Home() {
     });
 
     useEffect(() => {
-        get('home')
-            .then(tvChannels => dispatch({ name: 'LOADED', tvChannels: tvChannels }))
-            .catch(e => dispatch({ name: 'ERROR', error: e }));
+        loadTvChannels(dispatch);
         return abortGet;
     }, []);
+    
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            console.log(nextState, state.status);
+            if (nextState === 'active' && state.status === 'error') {
+                loadTvChannels(dispatch);
+            }
+        });
+        return () => {
+            if (subscription != null) {
+                subscription.remove();
+            }
+        };
+    }, [state.status]);
 
     return <View style={STYLES.fullScreen}>
         {state.status == 'loading' && <Loader />}
@@ -82,6 +95,12 @@ function TvShow({ tvChannel, tvShow, }) {
             <Text style={styles.tvShowTitle} numberOfLines={1}>{tvShow.title}</Text>
         </TouchableOpacity>
     );
+}
+
+function loadTvChannels(dispatch) {
+    get('/home')
+        .then(tvChannels => dispatch({ name: 'LOADED', tvChannels: tvChannels }))
+        .catch(e => dispatch({ name: 'ERROR', error: e }));
 }
 
 const styles = StyleSheet.create({
