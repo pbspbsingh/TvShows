@@ -21,14 +21,14 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
     const eventEmitter = new NativeEventEmitter(NativeModules.KeyBoardModule);
 
     const [title, videoUrl] = episodeParts[index];
+    const [fullScreen, fullScreenDispatch] = useState(false);
     const [durationState, durationDispath] = useState({ current: 0, total: 0 });
-    const [pauseState, pauseDispatch] = useState(false);
+    const [[pauseState, playSpeed], pauseDispatch] = useState([false, 1]);
 
     const navigation = useNavigation();
     const playerRef = useRef(null);
 
     useEffect(() => {
-        ToastAndroid.show(title, ToastAndroid.LONG);
         const eventListener = eventEmitter.addListener('keyEvent', (event) => {
             let { current: player } = playerRef;
             switch (event.keyCode) {
@@ -53,22 +53,38 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                     break;
                 }
                 case 85: { // play|pause
-                    pauseDispatch(!pauseState);
-                    break;
-                }
-                case 89: { // Play previous
-                    if (index > 0) {
-                        navigation.replace('WatchTv', { episodeParts, index: index - 1 });
+                    if (playSpeed == 1) {
+                        pauseDispatch([!pauseState, 1]);
                     } else {
-                        ToastAndroid.show(`First part: ${title}`, ToastAndroid.SHORT);
+                        pauseDispatch([false, 1]);
                     }
                     break;
                 }
-                case 90: { // Play next
-                    if (index < episodeParts.length - 1) {
-                        navigation.replace('WatchTv', { episodeParts, index: index + 1 });
+                case 89: { // <<-
+                    if (pauseState) {
+                        pauseDispatch([false, 1])
                     } else {
-                        ToastAndroid.show(`Last part: ${title}`, ToastAndroid.SHORT);
+                        let newPlaySpeed = playSpeed;
+                        if (newPlaySpeed >= 0.5 && newPlaySpeed <= 1) {
+                            newPlaySpeed /= 2;
+                        } else {
+                            newPlaySpeed = 1;
+                        }
+                        pauseDispatch([false, newPlaySpeed]);
+                    }
+                    break;
+                }
+                case 90: { // ->>
+                    if (pauseState) {
+                        pauseDispatch([false, 1])
+                    } else {
+                        let newPlaySpeed = playSpeed;
+                        if (newPlaySpeed >= 1 && newPlaySpeed <= 3) {
+                            newPlaySpeed += 1;
+                        } else {
+                            newPlaySpeed = 1;
+                        }
+                        pauseDispatch([false, newPlaySpeed]);
                     }
                     break;
                 }
@@ -77,7 +93,12 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
             }
         });
         return () => eventListener.remove();
-    }, [pauseState]);
+    }, [pauseState, playSpeed]);
+
+    useEffect(() => {
+        ToastAndroid.show(title, ToastAndroid.LONG);
+        setTimeout(() => fullScreenDispatch(true), 2500);
+    }, []);
 
     return (
         <View style={[STYLES.fullScreen, { padding: 0 }]}>
@@ -86,9 +107,10 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                 style={styles.video}
                 controls={false}
                 paused={pauseState}
+                rate={playSpeed}
                 resizeMode='contain'
                 focusable={false}
-                fullscreen={true}
+                fullscreen={fullScreen}
                 source={{ uri: `http://${hostname()}${videoUrl}` }}
                 onError={e => ToastAndroid.show('Playback Error, please go back and try again', ToastAndroid.LONG)}
                 onProgress={(evt) => durationDispath({
@@ -119,7 +141,8 @@ export default function WatchTv({ route: { params: { episodeParts, index } } }) 
                     }} />
                 <Text style={styles.textLeft}>{humanReadable(durationState.total - durationState.current)}</Text>
             </View>}
-            {pauseState && <Text style={styles.pauseIcon}>⏸</Text>}
+            {pauseState && <Text style={styles.overlayMsg}>⏯</Text>}
+            {(!pauseState && playSpeed != 1) && <Text style={styles.overlayMsg}>{playSpeed}x</Text>}
         </View>
     );
 }
@@ -161,10 +184,11 @@ const styles = StyleSheet.create({
         color: COLORS.primaryLightest,
         marginRight: 10,
     },
-    pauseIcon: {
+    overlayMsg: {
         position: 'absolute',
-        left: '50%',
+        left: '46%',
         fontSize: 40,
         opacity: .75,
+        color: COLORS.border,
     },
 });
