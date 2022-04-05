@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::time::{Duration as StdDuration, SystemTime};
 
 use chrono::{Datelike, Duration, Local, NaiveDate};
 
@@ -8,7 +8,7 @@ pub const TV_CHANNEL_FILE: &str = "channels.json";
 
 pub const TV_SHOWS_FILE: &str = "tv_shows.json";
 
-pub const WEEK: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+pub const WEEK: StdDuration = StdDuration::from_secs(7 * 24 * 60 * 60);
 
 pub fn expiry_time() -> SystemTime {
     let now = Local::now().naive_local();
