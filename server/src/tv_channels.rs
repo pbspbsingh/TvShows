@@ -69,18 +69,20 @@ async fn download_tv_channels() -> anyhow::Result<LinkedHashMap<String, Vec<TvSh
     info!("Loading TV channels from {DESI_TV}");
     let html = http_client().get(DESI_TV).send().await?.text().await?;
     let mut tv_channels = parse_channels(&html);
-    if let Some(last_channel) = tv_channels.last() {
-        if last_channel.0.contains("View All") {
-            let (_, link) = tv_channels.pop().unwrap();
-            let html = http_client()
-                .get(&link)
-                .header(header::REFERER, DESI_TV)
-                .send()
-                .await?
-                .text()
-                .await?;
-            tv_channels.extend(parse_web_series(&html, &link));
-        }
+    if tv_channels
+        .last()
+        .map(|(title, _)| title.contains("View All"))
+        .unwrap_or(false)
+    {
+        let (_, link) = tv_channels.pop().unwrap();
+        let html = http_client()
+            .get(&link)
+            .header(header::REFERER, DESI_TV)
+            .send()
+            .await?
+            .text()
+            .await?;
+        tv_channels.extend(parse_web_series(&html, &link));
     }
     let tv_channels = tv_channels
         .into_iter()

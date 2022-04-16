@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 
 [[bin]]
@@ -41,5 +41,5 @@ linked-hash-map = { version = "0", features = ["serde_impl"] }
 
 [profile.release]
 codegen-units = 1
-debug = false
 lto = true
+strip = true

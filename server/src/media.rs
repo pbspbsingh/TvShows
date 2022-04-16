@@ -115,11 +115,16 @@ async fn response_to_body(
                 }
             }
         }
-        info!(
-            "Read all the bytes, last batch speed: {}, net speed: {}",
-            bytes_per_second(cur_count, cur_start.elapsed().as_millis()),
-            bytes_per_second(net_count, net_start.elapsed().as_millis()),
-        );
+        let last_batch = bytes_per_second(cur_count, cur_start.elapsed().as_millis());
+        let net_speed = bytes_per_second(net_count, net_start.elapsed().as_millis());
+        if last_batch == net_speed {
+            info!("Read all the bytes, overall speed: {}", net_speed,);
+        } else {
+            info!(
+                "Read all the bytes, last batch speed: {}, net speed: {}",
+                last_batch, net_speed,
+            );
+        }
     });
     Ok(http_res.body(Body::from(body_stream(receiver)))?)
 }
@@ -140,14 +145,24 @@ fn bytes_per_second(bytes_count: usize, millis: u128) -> String {
     const KB: f64 = 1024.;
     const MB: f64 = KB * KB;
 
-    let bps = (bytes_count as f64) * 1000. / (millis as f64);
-    if bps >= MB {
-        format!("{:.2} MB/s", bps / MB)
-    } else if bps >= KB {
-        format!("{:.2} KB/s", bps / KB)
+    let bytes_count = bytes_count as f64;
+    let bps = (bytes_count * 1000.) / (millis as f64);
+
+    let data = if bytes_count >= MB {
+        format!("{:.2}MB", bytes_count / MB)
+    } else if bytes_count >= KB {
+        format!("{:.2}KB", bytes_count / KB)
     } else {
-        format!("{:.2} B/s", bps)
-    }
+        format!("{:.2}B", bytes_count)
+    };
+    let data_rate = if bps >= MB {
+        format!("{:.2}MB/s", bps / MB)
+    } else if bps >= KB {
+        format!("{:.2}KB/s", bps / KB)
+    } else {
+        format!("{:.2}B/s", bps)
+    };
+    format!("{data} @ {data_rate}")
 }
 
 #[cfg(test)]
