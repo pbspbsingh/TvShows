@@ -11,6 +11,7 @@ use tracing_subscriber::EnvFilter;
 
 mod cleanup;
 mod error;
+mod file;
 mod http_util;
 mod media;
 mod models;
@@ -65,6 +66,7 @@ async fn _main() -> anyhow::Result<()> {
             get(tv_episodes::get_metadata),
         )
         .route("/media", any(media::media))
+        .fallback(get(file::static_assets))
         .layer(TraceLayer::new_for_http());
 
     Server::bind(&address)
