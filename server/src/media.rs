@@ -55,12 +55,11 @@ pub async fn media(
     let url = params
         .get("url")
         .ok_or_else(|| anyhow!("No url found in query params"))?;
-    let is_mp4 = params.get("is_mp4").map(|m| m == "true").unwrap_or(false);
     info!("{}: {}", request.method(), url);
 
     let mut req = http_client().request(request.method().clone(), url);
     for (key, val) in request.headers() {
-        if is_mp4 || ALLOWED_HEADERS.contains(key.as_str()) {
+        if ALLOWED_HEADERS.contains(key.as_str()) {
             req = req.header(key, val);
         }
     }
@@ -69,16 +68,13 @@ pub async fn media(
         .await
         .map_err(|e| anyhow!("Failed to fetch {url}, {e:?}"))?;
     debug!("Status: {}, header: {:?}", res.status(), res.headers());
-    Ok(response_to_body(res, is_mp4).await?)
+    Ok(response_to_body(res).await?)
 }
 
-async fn response_to_body(
-    mut response: reqwest::Response,
-    is_mp4: bool,
-) -> anyhow::Result<Response<Body>> {
+async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Response<Body>> {
     let mut http_res = Response::builder().status(response.status());
     for (key, val) in response.headers() {
-        if is_mp4 || ALLOWED_HEADERS.contains(key.as_str()) {
+        if ALLOWED_HEADERS.contains(key.as_str()) {
             http_res = http_res.header(key, val);
         }
     }
