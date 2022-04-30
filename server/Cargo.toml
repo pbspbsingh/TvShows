@@ -40,6 +40,7 @@ structopt = { version = "0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 linked-hash-map = { version = "0", features = ["serde_impl"] }
+stretto = { version = "0.4", features = ["async"] }
 
 [profile.release]
 codegen-units = 1

@@ -1,14 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use axum::body::{Body, Bytes};
 use axum::extract::Query;
-use axum::http::Request;
+use axum::http::{HeaderValue, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use futures::{stream, Stream};
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use reqwest::header;
+use reqwest::header::HeaderName;
+use stretto::AsyncCache;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{channel, Receiver};
 use tokio::time::Instant;
@@ -18,6 +21,10 @@ use crate::error::HttpError;
 use crate::http_util::http_client;
 
 const CHANNEL_BUFFER: usize = 32;
+
+const CACHE_CAPACITY: usize = 1000;
+
+const MAX_CACHE_BODY: usize = 5 * 1024 * 1024; // 5MB
 
 static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
     HashSet::from([
@@ -42,20 +49,48 @@ static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
     ])
 });
 
+static MEDIA_CACHE: OnceCell<AsyncCache<String, MediaCache>> = OnceCell::new();
+
+struct MediaCache {
+    status: StatusCode,
+    headers: Vec<(HeaderName, HeaderValue)>,
+    body: Vec<u8>,
+}
+
+pub fn init_media_cache(cache_size: i64) {
+    MEDIA_CACHE
+        .set(
+            AsyncCache::builder(10 * CACHE_CAPACITY, cache_size * 1024 * 1024)
+                .set_ignore_internal_cost(true)
+                .set_cleanup_duration(Duration::from_secs(1))
+                .finalize()
+                .unwrap(),
+        )
+        .ok();
+}
+
 pub async fn media(
     request: Request<Body>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, HttpError> {
-    debug!(
-        "{} media, headers= {:?} query params= {:?}",
-        request.method(),
-        request.headers(),
-        params,
-    );
     let url = params
         .get("url")
         .ok_or_else(|| anyhow!("No url found in query params"))?;
-    info!("{}: {}", request.method(), url);
+
+    let media_cache = MEDIA_CACHE.get().unwrap();
+    if let Some(cache) = media_cache.get(url) {
+        info!("Cache hit({}): {}", media_cache.len(), url);
+        let cache = cache.value();
+        let mut http_res = Response::builder().status(cache.status);
+        for (key, val) in &cache.headers {
+            http_res = http_res.header(key, val);
+        }
+        if let Ok(http_res) = http_res.body(cache.body.clone().into()) {
+            return Ok(http_res);
+        }
+    } else {
+        info!("Cache miss({}): {}", media_cache.len(), url);
+    }
 
     let mut req = http_client().request(request.method().clone(), url);
     for (key, val) in request.headers() {
@@ -68,28 +103,62 @@ pub async fn media(
         .await
         .map_err(|e| anyhow!("Failed to fetch {url}, {e:?}"))?;
     debug!("Status: {}, header: {:?}", res.status(), res.headers());
-    Ok(response_to_body(res).await?)
+    Ok(response_to_body(url.clone(), res).await?)
 }
 
-async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Response<Body>> {
+async fn response_to_body(
+    cache_key: String,
+    mut response: reqwest::Response,
+) -> anyhow::Result<Response<Body>> {
+    let mut cache = MediaCache {
+        status: response.status(),
+        headers: Vec::new(),
+        body: Vec::new(),
+    };
+
     let mut http_res = Response::builder().status(response.status());
     for (key, val) in response.headers() {
         if ALLOWED_HEADERS.contains(key.as_str()) {
             http_res = http_res.header(key, val);
+            cache.headers.push((key.to_owned(), val.to_owned()));
         }
     }
+
     let (sender, receiver) = channel::<Option<Bytes>>(CHANNEL_BUFFER);
     tokio::spawn(async move {
         let (mut cur_start, mut cur_count) = (Instant::now(), 0);
         let (net_start, mut net_count) = (Instant::now(), 0);
+
         while let Ok(bytes) = response.chunk().await {
-            let len = bytes.as_ref().map(|b| b.len()).unwrap_or(0);
-            net_count += len;
-            cur_count += len;
-            if bytes.is_none() {
-                debug!("Done reading bytes from remote server");
-                break;
-            }
+            match bytes.as_ref() {
+                Some(bytes) => {
+                    net_count += bytes.len();
+                    cur_count += bytes.len();
+
+                    if net_count < MAX_CACHE_BODY && cache.status == 200 {
+                        cache.body.extend(bytes);
+                    } else {
+                        cache.body.clear();
+                    }
+                }
+                None => {
+                    debug!("Done reading bytes from remote server");
+                    if net_count < MAX_CACHE_BODY && cache.status == 200 {
+                        debug!("Inserting into the media cache");
+                        assert_eq!(net_count, cache.body.len());
+                        MEDIA_CACHE
+                            .get()
+                            .unwrap()
+                            .insert(cache_key, cache, net_count as i64)
+                            .await;
+                    } else {
+                        assert_eq!(cache.body.len(), 0);
+                        warn!("Media too big for the cache");
+                    }
+                    break;
+                }
+            };
+
             if let Err(err) = sender.try_send(bytes) {
                 match err {
                     TrySendError::Full(bytes) => {

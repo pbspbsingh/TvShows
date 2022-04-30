@@ -51,7 +51,7 @@ async fn _main() -> anyhow::Result<()> {
     let opts = Opts::from_args();
     let address = ([0, 0, 0, 0], opts.port).into();
     info!("Listing for http requests at '{address}'");
-
+    media::init_media_cache(opts.cache_size as i64);
     tokio::spawn(tv_shows::init_tv_shows());
     tokio::spawn(cleanup::start_cleanup());
     let app = Router::new()
@@ -81,4 +81,6 @@ async fn _main() -> anyhow::Result<()> {
 struct Opts {
     #[structopt(short = "p", long = "port", default_value = "3000")]
     port: u16,
+    #[structopt(short = "c", long = "cache", default_value = "500")]
+    cache_size: u32,
 }
