@@ -10,7 +10,7 @@ use futures::{stream, Stream};
 use once_cell::sync::Lazy;
 use reqwest::header;
 use tokio::sync::mpsc::error::TrySendError;
-use tokio::sync::mpsc::{channel, Receiver};
+use tokio::sync::mpsc::{self, Receiver};
 use tokio::time::Instant;
 use tracing::*;
 
@@ -78,18 +78,13 @@ async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Res
             http_res = http_res.header(key, val);
         }
     }
-    let (sender, receiver) = channel::<Option<Bytes>>(CHANNEL_BUFFER);
+    let (sender, receiver) = mpsc::channel(CHANNEL_BUFFER);
     tokio::spawn(async move {
         let (mut cur_start, mut cur_count) = (Instant::now(), 0);
         let (net_start, mut net_count) = (Instant::now(), 0);
-        while let Ok(bytes) = response.chunk().await {
-            let len = bytes.as_ref().map(|b| b.len()).unwrap_or(0);
-            net_count += len;
-            cur_count += len;
-            if bytes.is_none() {
-                debug!("Done reading bytes from remote server");
-                break;
-            }
+        while let Ok(Some(bytes)) = response.chunk().await {
+            net_count += bytes.len();
+            cur_count += bytes.len();
             if let Err(err) = sender.try_send(bytes) {
                 match err {
                     TrySendError::Full(bytes) => {
@@ -126,14 +121,10 @@ async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Res
 }
 
 fn body_stream(
-    receiver: Receiver<Option<Bytes>>,
+    receiver: Receiver<Bytes>,
 ) -> Box<dyn Stream<Item = Result<Bytes, Box<dyn Error + Send + Sync>>> + Send> {
     Box::new(stream::unfold(receiver, |mut receiver| async move {
-        if let Some(Some(bytes)) = receiver.recv().await {
-            Some((Ok(bytes), receiver))
-        } else {
-            None
-        }
+        receiver.recv().await.map(|bytes| (Ok(bytes), receiver))
     }))
 }
 
