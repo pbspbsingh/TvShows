@@ -113,7 +113,7 @@ export default function Parts(): JSX.Element {
             <header>
                 <ul className="nav">
                     <li className="home"><Link to="/">Home</Link></li>
-                    <li><Link to={`/#${channel}`}>{channel}</Link></li>
+                    <li><Link to={`/channel/${channel}`}>{channel}</Link></li>
                     <li><Link to={`/tvshow/${channel}/${tv_show}`}>{tv_show}</Link></li>
                     <li>{episode}</li>
                 </ul>

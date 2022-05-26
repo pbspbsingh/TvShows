@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LazyLoadImage } from 'react-lazy-load-image-component';
 
 import { ErrMsg, Loader } from './common';
 import { get } from './util';
 
-type TvShow = {
+export type TvShow = {
     title: string;
     icon: string;
 };
 
-type Channels = {
+export type Channels = {
     [name: string]: Array<TvShow>,
 };
 
@@ -45,20 +46,34 @@ export default function Home(): JSX.Element {
             {state.status === 'done' && <main className="container">
                 {Object.entries(state.channels).map(([title, tvShows]) =>
                     <section key={title} className="channel" id={title}>
-                        <h3 className="channelTitle">{title} ({tvShows.length})</h3>
+                        <h3 className="channelTitle">
+                            <Link to={`/channel/${title}`}>
+                                {title} ({tvShows.length})
+                            </Link>
+                        </h3>
                         <article className="tvShows">
                             {tvShows.map(({ title: showTitle, icon }) =>
-                                <div key={showTitle} className="tvShow">
-                                    <Link to={`/tvshow/${title}/${showTitle}`}>
-                                        <img src={icon} alt={title} loading="lazy" />
-                                    </Link>
-                                    <Link to={`/tvshow/${title}/${showTitle}`}>
-                                        <h3>{showTitle}</h3>
-                                    </Link>
-                                </div>)}
+                                <TvSoap
+                                    key={`${title}/${showTitle}`}
+                                    channel={title}
+                                    showTitle={showTitle}
+                                    icon={icon}
+                                />
+                            )}
                         </article>
                     </section>)}
             </main>}
         </>
     );
 }
+
+export const TvSoap = ({ channel, showTitle, icon }: { channel: string, showTitle: string, icon: string }) => (
+    <div key={showTitle} className="tvShow">
+        <Link to={`/tvshow/${channel}/${showTitle}`}>
+            <LazyLoadImage src={icon} alt={channel} loading="lazy" />
+        </Link>
+        <Link to={`/tvshow/${channel}/${showTitle}`}>
+            <h3>{showTitle}</h3>
+        </Link>
+    </div>
+);

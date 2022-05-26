@@ -61,7 +61,7 @@ export default function TvShow(): JSX.Element {
             <header>
                 <ul className="nav">
                     <li className="home"><Link to="/">Home</Link></li>
-                    <li><Link to={`/#${channel}`}>{channel}</Link></li>
+                    <li><Link to={`/channel/${channel}`}>{channel}</Link></li>
                     <li>{tv_show}</li>
                 </ul>
             </header>
