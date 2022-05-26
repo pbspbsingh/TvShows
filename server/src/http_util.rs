@@ -9,7 +9,7 @@ use url::{ParseError, Url};
 pub const PARALLELISM: usize = 8;
 
 pub const USER_AGENT: &str =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:99.0) Gecko/20100101 Firefox/99.0";
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:101.0) Gecko/20100101 Firefox/101.0";
 
 static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()

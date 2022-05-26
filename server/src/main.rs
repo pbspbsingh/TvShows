@@ -54,6 +54,8 @@ async fn _main() -> anyhow::Result<()> {
 
     tokio::spawn(tv_shows::init_tv_shows());
     tokio::spawn(cleanup::start_cleanup());
+    tokio::spawn(media::download_speed::init());
+
     let app = Router::new()
         .route("/home", get(tv_channels::channel_home))
         .route("/episodes/:tv_channel/:tv_show", get(tv_shows::episodes))
