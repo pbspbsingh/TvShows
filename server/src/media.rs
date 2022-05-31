@@ -17,8 +17,8 @@ use crate::http_util::http_client;
 
 const CHANNEL_BUFFER: usize = 32;
 
-static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
-    HashSet::from([
+static ALLOWED_HEADERS: Lazy<HashSet<String>> = Lazy::new(|| {
+    [
         header::ACCESS_CONTROL_ALLOW_ORIGIN,
         header::ACCESS_CONTROL_ALLOW_CREDENTIALS,
         header::ACCEPT,
@@ -26,9 +26,9 @@ static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
         header::ACCEPT_ENCODING,
         header::ACCEPT_RANGES,
         header::CACHE_CONTROL,
-        header::CONNECTION,
         header::CONTENT_TYPE,
         header::CONTENT_LENGTH,
+        header::CONTENT_RANGE,
         header::COOKIE,
         header::DATE,
         header::EXPIRES,
@@ -37,7 +37,10 @@ static ALLOWED_HEADERS: Lazy<HashSet<header::HeaderName>> = Lazy::new(|| {
         header::PRAGMA,
         header::RANGE,
         header::VARY,
-    ])
+    ]
+    .into_iter()
+    .map(|header| header.as_str().to_lowercase())
+    .collect()
 });
 
 pub async fn media(
@@ -57,7 +60,7 @@ pub async fn media(
 
     let mut req = http_client().request(request.method().clone(), url);
     for (key, val) in request.headers() {
-        if ALLOWED_HEADERS.contains(key.as_str()) {
+        if ALLOWED_HEADERS.contains(&key.as_str().to_lowercase()) {
             req = req.header(key, val);
         }
     }
@@ -71,11 +74,18 @@ pub async fn media(
 
 async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Response<Body>> {
     let mut http_res = Response::builder().status(response.status());
+    let mut ignored_headers = Vec::new();
     for (key, val) in response.headers() {
-        if ALLOWED_HEADERS.contains(key.as_str()) {
+        if ALLOWED_HEADERS.contains(&key.as_str().to_lowercase()) {
             http_res = http_res.header(key, val);
+        } else {
+            ignored_headers.push((key, val));
         }
     }
+    if !ignored_headers.is_empty() {
+        debug!("Ignored headers: {ignored_headers:?}");
+    }
+
     let (sender, receiver) = mpsc::channel(CHANNEL_BUFFER);
     tokio::spawn(async move {
         let download_speed = download_speed::SENDER.get();
