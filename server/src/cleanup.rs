@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 use tokio::{fs, time};
 use tracing::*;
 
-use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE, TV_SHOWS_FILE, WEEK};
+use crate::utils::{expiry_time, CACHE_FOLDER, EXPIRY, TV_CHANNEL_FILE, TV_SHOWS_FILE};
 
 const DO_NOT_DELETE_FILES: &[&str] = &[CACHE_FOLDER, TV_CHANNEL_FILE, TV_SHOWS_FILE];
 
@@ -33,7 +33,7 @@ pub async fn start_cleanup() -> ! {
                 if read_dir.next_entry().await?.is_none() {
                     count += delete(path).await?;
                 }
-            } else if metadata.is_file() && metadata.modified()?.elapsed()? > WEEK {
+            } else if metadata.is_file() && metadata.modified()?.elapsed()? > EXPIRY {
                 count += delete(path).await?;
             }
             Ok(count)

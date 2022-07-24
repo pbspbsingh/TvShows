@@ -375,7 +375,7 @@ mod state {
 
         async fn save_state(&self) {
             async fn _save_state(path: PathBuf, state: &TvShowsState) -> anyhow::Result<()> {
-                let state = serde_json::to_string_pretty(&*state)?;
+                let state = serde_json::to_string_pretty(state)?;
                 fs::write(path, state).await?;
                 Ok(())
             }

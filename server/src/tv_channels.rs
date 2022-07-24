@@ -265,7 +265,7 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShow;
-    use crate::utils::{expiry_time, CACHE_FOLDER, TV_CHANNEL_FILE, WEEK};
+    use crate::utils::{expiry_time, CACHE_FOLDER, EXPIRY, TV_CHANNEL_FILE};
 
     pub static STATE: OnceCell<TvChannelStateWrapper> = OnceCell::new();
 
@@ -311,7 +311,7 @@ mod state {
             for (key, value) in new_channels {
                 write.channels.insert(key.to_owned(), value.to_owned());
             }
-            write.expires_at = expiry_time() + WEEK;
+            write.expires_at = expiry_time() + EXPIRY;
             drop(write);
             self.dump().await
         }

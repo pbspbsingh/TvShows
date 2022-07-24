@@ -8,7 +8,7 @@ pub const TV_CHANNEL_FILE: &str = "channels.json";
 
 pub const TV_SHOWS_FILE: &str = "tv_shows.json";
 
-pub const WEEK: StdDuration = StdDuration::from_secs(7 * 24 * 60 * 60);
+pub const EXPIRY: StdDuration = StdDuration::from_secs(2 * 24 * 60 * 60);
 
 pub fn expiry_time() -> SystemTime {
     let now = Local::now().naive_local();
