@@ -85,7 +85,7 @@ export default function Parts(): JSX.Element {
                 fluid: true,
                 sources: [{
                     src: state.parts[state.curIdx].url
-                }]
+                }],
             });
         } else {
             videoPlayer.current.autoplay(true);
@@ -150,7 +150,8 @@ export default function Parts(): JSX.Element {
                                 } else {
                                     loadNextEpisode(navigate, { channel, tv_show, episode });
                                 }
-                            }} />
+                            }}
+                        />
                     </div>
                 </div>}
             </main>
