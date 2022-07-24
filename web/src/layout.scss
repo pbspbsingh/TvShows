@@ -185,6 +185,7 @@ body {
 
             .partList {
                 padding: 0 10px;
+                flex: 1;
 
                 ul {
                     list-style: none;
@@ -207,7 +208,7 @@ body {
             }
 
             .videoPlayer {
-                flex: 1;
+                flex: 3;
             }
         }
     }

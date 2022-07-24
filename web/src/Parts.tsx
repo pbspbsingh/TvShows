@@ -1,5 +1,5 @@
 import React, { useEffect, useReducer, useRef } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, NavigateFunction, useNavigate, useParams } from 'react-router-dom';
 
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
@@ -54,6 +54,7 @@ function reduce(state: State, action: Action): State {
 
 export default function Parts(): JSX.Element {
     const { channel, tv_show, episode } = useParams();
+    const navigate = useNavigate();
 
     const [state, dispatch] = useReducer(reduce, {
         status: 'loading',
@@ -146,6 +147,8 @@ export default function Parts(): JSX.Element {
                             onEnded={() => {
                                 if (state.curIdx < state.parts.length - 1) {
                                     dispatch({ name: 'PLAY', index: state.curIdx + 1 });
+                                } else {
+                                    loadNextEpisode(navigate, { channel, tv_show, episode });
                                 }
                             }} />
                     </div>
@@ -153,4 +156,37 @@ export default function Parts(): JSX.Element {
             </main>
         </>
     );
+}
+
+type TvSoap = {
+    channel?: string;
+    tv_show?: string;
+    episode?: string;
+};
+
+async function loadNextEpisode(navigate: NavigateFunction, { channel, tv_show, episode }: TvSoap) {
+    console.log(`Done playing all parts of this episode[${episode}], trying to play next..`);
+    if (channel == null || tv_show == null || episode == null) {
+        console.warn('One of the param is null', channel, tv_show, episode);
+        return;
+    }
+
+    try {
+        const { episodes } = await get<{ episodes: string[] }>(`/episodes/${channel}/${tv_show}`);
+        let next: number | null = null;
+        for (let i = episodes.length - 1; i > 0; i--) {
+            if (episodes[i] === episode) {
+                next = i - 1;
+                break;
+            }
+        }
+        if (next != null) {
+            console.log('Playing next episode:', episodes[next]);
+            navigate(`/parts/${channel}/${tv_show}/${episodes[next]}`);
+        } else {
+            console.log('This is the last part, can\'t play next');
+        }
+    } catch (e) {
+        console.error(`Something went wrong while loading episodes for ${channel}\${tv_show}`, e);
+    }
 }

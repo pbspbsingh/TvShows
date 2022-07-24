@@ -1,5 +1,5 @@
 export const Loader = () => (<div className="loader">
-    <img src="/loader.svg" alt="Loading" />
+    <img src="/loader.svg" alt="" />
     <h3>Loading...</h3>
 </div>);
 

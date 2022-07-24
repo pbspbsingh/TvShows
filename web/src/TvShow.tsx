@@ -72,7 +72,7 @@ export default function TvShow(): JSX.Element {
                     <ul className="episodes">
                         {state.episodes.map((episode, idx) =>
                             <li key={`${episode}_ ${idx}`}>
-                                {idx + 1} &nbsp;
+                                {state.hasMore && <span>{idx + 1}. &nbsp;</span>}
                                 <Link to={`/parts/${channel}/${tv_show}/${episode}`}>
                                     {episode}
                                 </Link>

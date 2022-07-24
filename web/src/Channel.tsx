@@ -51,7 +51,7 @@ export default function Channel(): JSX.Element {
                 tvShows: [],
                 error: e.toString(),
             }));
-    }, []);
+    }, [channel]);
 
 
     return (<>
