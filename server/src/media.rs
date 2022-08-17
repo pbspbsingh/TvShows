@@ -96,7 +96,7 @@ async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Res
             }
         }
     });
-    Ok(http_res.body(Body::from(body_stream(receiver)))?)
+    Ok(http_res.body(body_stream(receiver).into())?)
 }
 
 fn body_stream(

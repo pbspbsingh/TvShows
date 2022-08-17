@@ -23,7 +23,7 @@ futures = "0"
 
 axum = "0"
 tower-http = { version = "0", features = ["trace"] }
-reqwest = { version = "0", features=["cookies", "brotli", "gzip", "rustls-tls"] }
+reqwest = { version = "0", default-features = false, features = ["cookies", "brotli", "gzip", "rustls-tls"] }
 
 url = "2"
 form_urlencoded = "1"
