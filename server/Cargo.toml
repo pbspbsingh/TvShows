@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "2.0.3"
+version = "2.1.0"
 edition = "2021"
 
 [[bin]]
@@ -33,7 +33,7 @@ base64 = "0"
 quick-js = { version = "0", features = ["log"] }
 bytes = "1"
 regex = "1"
-
+include_dir = "0"
 
 once_cell = "1"
 structopt = { version = "0", default-features = false }

@@ -672,6 +672,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "include_dir"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "482a2e29200b7eed25d7fdbd14423326760b7f6658d21a4cf12d55a50713c69f"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e074c19deab2501407c91ba1860fa3d6820bfde307db6d8cb851b55a10be89b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1486,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "2.0.3"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1495,12 +1514,13 @@ dependencies = [
  "chrono",
  "form_urlencoded",
  "futures",
+ "include_dir",
  "linked-hash-map",
  "mimalloc",
  "mime_guess",
  "once_cell",
  "quick-js",
- "rand 0.8.5",
+ "rand 0.7.3",
  "regex",
  "reqwest",
  "scraper",
