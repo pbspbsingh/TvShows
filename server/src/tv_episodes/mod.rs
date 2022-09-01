@@ -15,7 +15,7 @@ use crate::error::HttpError;
 use crate::http_util::{normalize_url, s, PARALLELISM};
 use crate::models::{Episode, VideoProvider};
 use crate::tv_shows::get_episode_parts;
-use crate::utils::CACHE_FOLDER;
+use crate::utils::cache_folder;
 
 mod metadata;
 mod providers;
@@ -77,7 +77,7 @@ pub async fn get_metadata(
     let file_name = params
         .get("file_name")
         .ok_or_else(|| anyhow!("File name not present in url"))?;
-    let file = PathBuf::from(CACHE_FOLDER).join(folder).join(file_name);
+    let file = PathBuf::from(cache_folder()).join(folder).join(file_name);
     info!("Reading metadata from {file:?}");
     Ok(fs::read_to_string(file).map_err(anyhow::Error::from)?)
 }

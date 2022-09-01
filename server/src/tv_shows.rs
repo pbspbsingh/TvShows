@@ -337,7 +337,7 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShowEpisodes;
-    use crate::utils::{expiry_time, CACHE_FOLDER, TV_SHOWS_FILE};
+    use crate::utils::{cache_folder, expiry_time, TV_SHOWS_FILE};
 
     pub(super) static STATE: OnceCell<TvShowsStateWrapper> = OnceCell::new();
 
@@ -381,7 +381,7 @@ mod state {
             }
 
             debug!("Saving state to file system");
-            let path = PathBuf::from(CACHE_FOLDER).join(TV_SHOWS_FILE);
+            let path = PathBuf::from(cache_folder()).join(TV_SHOWS_FILE);
             _save_state(path, &*self.0.read().await)
                 .await
                 .map_err(|e| {
@@ -393,7 +393,7 @@ mod state {
     }
 
     pub async fn init() {
-        let path = PathBuf::from(CACHE_FOLDER);
+        let path = PathBuf::from(cache_folder());
         if !path.exists() {
             fs::create_dir_all(&path).await.ok();
         }

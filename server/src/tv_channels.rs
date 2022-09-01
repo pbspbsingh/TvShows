@@ -265,7 +265,7 @@ mod state {
     use tracing::*;
 
     use crate::models::TvShow;
-    use crate::utils::{expiry_time, CACHE_FOLDER, EXPIRY, TV_CHANNEL_FILE};
+    use crate::utils::{cache_folder, expiry_time, EXPIRY, TV_CHANNEL_FILE};
 
     pub static STATE: OnceCell<TvChannelStateWrapper> = OnceCell::new();
 
@@ -318,7 +318,7 @@ mod state {
 
         async fn dump(&self) -> anyhow::Result<()> {
             let content = serde_json::to_string_pretty(&*self.0.read().await)?;
-            let file = PathBuf::from(CACHE_FOLDER).join(TV_CHANNEL_FILE);
+            let file = PathBuf::from(cache_folder()).join(TV_CHANNEL_FILE);
             if !file.exists() {
                 let parent = file
                     .parent()
@@ -334,7 +334,7 @@ mod state {
 
     pub async fn init() {
         if STATE.get().is_none() {
-            let file = PathBuf::from(CACHE_FOLDER).join(TV_CHANNEL_FILE);
+            let file = PathBuf::from(cache_folder()).join(TV_CHANNEL_FILE);
             let tv_channels = match fs::read_to_string(&file).await.and_then(|content| {
                 serde_json::from_str::<TvChannelState>(&content)
                     .map_err(|_| std::io::ErrorKind::InvalidData.into())

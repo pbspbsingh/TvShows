@@ -1,14 +1,28 @@
 use std::time::{Duration as StdDuration, SystemTime};
 
 use chrono::{Datelike, Duration, Local, NaiveDate};
-
-pub const CACHE_FOLDER: &str = "cache";
+use once_cell::sync::OnceCell;
+use tracing::*;
 
 pub const TV_CHANNEL_FILE: &str = "channels.json";
 
 pub const TV_SHOWS_FILE: &str = "tv_shows.json";
 
 pub const EXPIRY: StdDuration = StdDuration::from_secs(2 * 24 * 60 * 60);
+
+static CACHE_FOLDER: OnceCell<String> = OnceCell::new();
+
+pub fn set_cache_folder(folder: &str) -> anyhow::Result<()> {
+    CACHE_FOLDER
+        .set(folder.to_owned())
+        .map_err(|_| anyhow::anyhow!("Failed to init the cache folder: {folder}"))?;
+    info!("Using cache folder: {folder}");
+    Ok(())
+}
+
+pub fn cache_folder() -> &'static str {
+    CACHE_FOLDER.get().map(|s| s as &str).unwrap_or("cache")
+}
 
 pub fn expiry_time() -> SystemTime {
     let now = Local::now().naive_local();

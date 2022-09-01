@@ -1,7 +1,10 @@
 [package]
 name = "server"
-version = "2.1.0"
+version = "2.2.1"
 edition = "2021"
+
+[lib]
+name = "tv_shows_server"
 
 [[bin]]
 name = "tv_shows_server"
