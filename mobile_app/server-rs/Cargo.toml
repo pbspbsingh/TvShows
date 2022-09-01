@@ -1,0 +1,21 @@
+[package]
+name = "server-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "server"
+crate_type = ["cdylib"]
+
+[dependencies]
+jni = "0"
+log = "0"
+android_logger = "0"
+
+server = { path = "../../server" }
+
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

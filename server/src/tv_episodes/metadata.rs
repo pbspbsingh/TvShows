@@ -9,7 +9,7 @@ use crate::http_util::{http_client, normalize_url};
 use crate::models::VideoProvider;
 use crate::tv_channels::DESI_TV;
 use crate::tv_episodes::providers::{dailymotion, flash_player, speed, tv_logy};
-use crate::utils::{encode_uri_component, hash, CACHE_FOLDER};
+use crate::utils::{cache_folder, encode_uri_component, hash};
 
 const METADATA_FILE: &str = "metadata.m3u8";
 
@@ -17,7 +17,7 @@ impl VideoProvider {
     pub async fn fetch_metadata(&self, link: &str) -> anyhow::Result<String> {
         debug!("Loading metadata of {self:?}:{link}");
         let hsh = hash(link);
-        let metadata_file = PathBuf::from(CACHE_FOLDER).join(&hsh).join(METADATA_FILE);
+        let metadata_file = PathBuf::from(cache_folder()).join(&hsh).join(METADATA_FILE);
         if metadata_file.exists() {
             return if self.is_mp4() {
                 Ok(fs::read_to_string(metadata_file).await?)

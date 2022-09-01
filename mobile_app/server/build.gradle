@@ -1,0 +1,23 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+task generateJniHeaders(type: JavaCompile) {
+    println "Generating JNI wrappers in '${buildDir}/generated/jni'"
+    source = sourceSets.main.java
+    classpath = sourceSets.main.compileClasspath
+    destinationDir = file("${buildDir}/generated/jni")
+    options.compilerArgs += [
+            '-h', file("${buildDir}/generated/jni"),
+            '-d', file("${buildDir}/generated/jni-tmp")
+    ]
+    options.verbose = true
+    doLast {
+        delete file("${buildDir}/generated/jni-tmp")
+    }
+}
