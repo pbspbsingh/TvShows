@@ -40,11 +40,19 @@ class MainActivity : AppCompatActivity() {
     webview.restoreState(savedInstanceState)
   }
 
+  override fun onBackPressed() {
+    if (webview.canGoBack()) {
+      webview.goBack()
+    } else {
+      super.onBackPressed()
+    }
+  }
+
   @SuppressLint("SetJavaScriptEnabled")
   private fun initWebView() {
     with(webview) {
       webViewClient = WebViewClient()
-      webChromeClient = MyChrome()
+      webChromeClient = FullScreenChromeClient()
 
       settings.javaScriptEnabled = true
       settings.allowFileAccess = true
@@ -52,40 +60,39 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  private inner class MyChrome : WebChromeClient() {
-    private var mCustomView: View? = null
-    private var mCustomViewCallback: CustomViewCallback? = null
-    private var mOriginalOrientation = 0
-    private var mOriginalSystemUiVisibility = 0
+  private inner class FullScreenChromeClient : WebChromeClient() {
+    private var customView: View? = null
+    private var customViewCallback: CustomViewCallback? = null
+    private var originalOrientation = 0
+    private var originalSystemUiVisibility = 0
 
-    override fun getDefaultVideoPoster(): Bitmap? {
-      return if (mCustomView == null) {
-        null
-      } else {
+    override fun getDefaultVideoPoster(): Bitmap? =
+      if (customView != null) {
         BitmapFactory.decodeResource(applicationContext.resources, 2130837573)
+      } else {
+        null
       }
-    }
 
     override fun onHideCustomView() {
-      (window.decorView as FrameLayout).removeView(mCustomView)
-      mCustomView = null
-      window.decorView.systemUiVisibility = mOriginalSystemUiVisibility
-      requestedOrientation = mOriginalOrientation
-      mCustomViewCallback?.onCustomViewHidden()
-      mCustomViewCallback = null
+      (window.decorView as FrameLayout).removeView(customView)
+      customView = null
+      window.decorView.systemUiVisibility = originalSystemUiVisibility
+      requestedOrientation = originalOrientation
+      customViewCallback?.onCustomViewHidden()
+      customViewCallback = null
     }
 
     override fun onShowCustomView(paramView: View?, paramCustomViewCallback: CustomViewCallback?) {
-      if (mCustomView != null) {
+      if (customView != null) {
         onHideCustomView()
         return
       }
 
-      mCustomView = paramView
-      mOriginalSystemUiVisibility = window.decorView.systemUiVisibility
-      mOriginalOrientation = requestedOrientation
-      mCustomViewCallback = paramCustomViewCallback
-      (window.decorView as FrameLayout).addView(mCustomView, FrameLayout.LayoutParams(-1, -1))
+      customView = paramView
+      originalSystemUiVisibility = window.decorView.systemUiVisibility
+      originalOrientation = requestedOrientation
+      customViewCallback = paramCustomViewCallback
+      (window.decorView as FrameLayout).addView(customView, FrameLayout.LayoutParams(-1, -1))
       window.decorView.systemUiVisibility = 3846 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     }
   }
