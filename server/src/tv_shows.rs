@@ -6,8 +6,7 @@ use axum::extract::{Path, Query};
 use axum::response::IntoResponse;
 use axum::Json;
 use futures::{stream, StreamExt};
-use once_cell::sync::{Lazy, OnceCell};
-use regex::Regex;
+use once_cell::sync::OnceCell;
 use reqwest::header;
 use scraper::{ElementRef, Html};
 use serde::{Deserialize, Serialize};
@@ -20,11 +19,9 @@ use crate::error::HttpError;
 use crate::http_util::{find_host, http_client, normalize_url, s, PARALLELISM};
 use crate::models::{Episode, TvShow, TvShowEpisodes, VideoProvider};
 use crate::tv_channels::get_tv_show;
+use crate::utils::fix_title;
 
-static SENDER: OnceCell<UnboundedSender<(TvShow, oneshot::Sender<TvShowEpisodes>)>> =
-    OnceCell::new();
-
-static WHITE_SPACE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
+static SENDER: OnceCell<UnboundedSender<(TvShow, Sender<TvShowEpisodes>)>> = OnceCell::new();
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct TvShowResponse {
@@ -245,7 +242,7 @@ async fn load_episodes_video_links(
             .next()
             .map(|t| t.inner_html())
             .unwrap_or_else(|| String::from("NA"));
-        let title = fix_title(&title);
+        let title = fix_title(title);
         let mut parts = doc
             .select(&s(".thecontent div.buttons.btn_green"))
             .filter_map(find_parts)
@@ -279,17 +276,6 @@ pub async fn get_episode_parts(
         .find(|(t, _)| t == title)
         .map(|(_, eps)| eps)?;
     Some(eps)
-}
-
-fn fix_title(title: &str) -> String {
-    let title = title
-        .trim()
-        .replace("Watch Online", "")
-        .replace("&amp;", "&");
-    let title = title.trim();
-    let title = title.strip_suffix('–').unwrap_or(title).trim();
-    let title = title.strip_suffix('-').unwrap_or(title).trim();
-    WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
 }
 
 impl VideoProvider {
@@ -430,16 +416,5 @@ mod state {
             }
         };
         STATE.set(TvShowsStateWrapper(RwLock::new(state))).ok();
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::fix_title;
-
-    #[test]
-    fn test_title() {
-        println!("{}", fix_title("Whos Your Daddy Watch Online – Episode 12"));
-        println!("{}", fix_title("Whos Your Daddy   Watch Online – "));
     }
 }

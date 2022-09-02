@@ -12,13 +12,16 @@ use tracing::*;
 use crate::error::HttpError;
 use crate::http_util::{http_client, normalize_url, s, PARALLELISM};
 use crate::models::TvShow;
-use crate::utils::encode_uri_component;
+use crate::utils::{encode_uri_component, fix_title};
 
 pub const DESI_TV: &str = "https://www.yodesitv.info";
 
 const NO_OF_CHANNEL_ROWS: usize = 2;
 
 const BANNED_CHANNELS: &[&str] = &["Star Jalsha", "Star Pravah", "Star Vijay", "Bindass TV"];
+
+const NO_ICON: &str =
+    "https://www.yodesitv.info/wp-content/uploads/2016/11/no-thumbnail-370x208.jpg";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct TvShowResponse {
@@ -132,11 +135,7 @@ fn parse_channels(html: &str) -> Vec<(String, String)> {
             if p_class.contains("home-channel-title") {
                 let p = ElementRef::wrap(p)?;
                 let html = p.select(&s("p")).next()?.inner_html();
-                title = Some(if let Some(title) = html.strip_suffix("Shows") {
-                    title.trim().to_owned()
-                } else {
-                    html
-                });
+                title = Some(fix_title(html));
                 break;
             }
             prev = p.prev_sibling();
@@ -221,9 +220,7 @@ async fn download_tv_shows(url: &str) -> anyhow::Result<Vec<TvShow>> {
             div.select(&s("a img"))
                 .next()
                 .and_then(|img| img.value().attr("src"))
-                .unwrap_or(
-                    "https://www.yodesitv.info/wp-content/uploads/2016/11/no-thumbnail-370x208.jpg",
-                ),
+                .unwrap_or(NO_ICON),
             host,
         )
         .ok()?
