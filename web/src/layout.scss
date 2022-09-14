@@ -14,7 +14,7 @@ $highlight: #9692ff;
 $border: #f7f7ff;
 $error: rgb(255, 121, 198);
 
-$mobile: 844px;
+$mobile: 1080px;
 $portrait: 750px;
 
 :root {
@@ -104,8 +104,8 @@ body {
             h3 {
                 font-weight: normal;
                 letter-spacing: 1.4px;
-                white-space: nowrap;
-                text-overflow: ellipsis;
+                //white-space: nowrap;
+                //text-overflow: ellipsis;
                 color: $primary;
             }
 
