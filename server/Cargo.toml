@@ -12,7 +12,6 @@ path = "src/main.rs"
 
 [dependencies]
 mimalloc = { version = "*", default-features = false }
-# anyhow = { version = "1", features = ["backtrace"] }
 anyhow = "1"
 rand = "0"
 chrono = "0"

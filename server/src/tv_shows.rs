@@ -230,7 +230,9 @@ async fn load_episodes_video_links(
         let links = p
             .select(&s("a"))
             .map(|a| (a.inner_html(), a.value().attr("href")))
-            .filter_map(|(title, opt_link)| opt_link.map(|link| (title, link.to_owned())))
+            .filter_map(|(title, opt_link)| {
+                opt_link.map(|link| (fix_title(title), link.to_owned()))
+            })
             .collect::<Vec<_>>();
         Some(Episode { provider, links })
     }

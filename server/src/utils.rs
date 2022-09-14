@@ -1,9 +1,10 @@
 use std::time::{Duration as StdDuration, SystemTime};
 
 use chrono::{Datelike, Duration, Local, NaiveDate};
-use once_cell::sync::{Lazy, OnceCell};
-use regex::Regex;
+use once_cell::sync::OnceCell;
 use tracing::*;
+
+pub use title_util::fix_title;
 
 pub const TV_CHANNEL_FILE: &str = "channels.json";
 
@@ -12,8 +13,6 @@ pub const TV_SHOWS_FILE: &str = "tv_shows.json";
 pub const EXPIRY: StdDuration = StdDuration::from_secs(2 * 24 * 60 * 60);
 
 static CACHE_FOLDER: OnceCell<String> = OnceCell::new();
-
-static WHITE_SPACE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
 
 pub fn set_cache_folder(folder: &str) -> anyhow::Result<()> {
     CACHE_FOLDER
@@ -44,19 +43,35 @@ pub fn encode_uri_component(input: impl AsRef<[u8]>) -> String {
     form_urlencoded::byte_serialize(input.as_ref()).collect()
 }
 
-pub fn fix_title(title: impl Into<String>) -> String {
-    const REPLACE_STR: &[(&str, &str)] = &[("Watch Online", ""), ("&amp;", "&")];
+mod title_util {
+    use once_cell::sync::Lazy;
+    use regex::Regex;
+
+    const REPLACE_STR: &[(&str, &str)] = &[
+        ("Watch Online", ""),
+        ("&amp;", "&"),
+        ("&nbsp;", " "),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+    ];
+
     const STRIP_SUFFIX: &[&str] = &["–", "-", "Shows"];
 
-    let mut title = title.into();
-    for &(old, new) in REPLACE_STR {
-        title = title.replace(old, new);
+    static WHITE_SPACE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
+
+    pub fn fix_title(title: impl Into<String>) -> String {
+        let mut title = title.into();
+        for &(old, new) in REPLACE_STR {
+            if title.contains(old) {
+                title = title.replace(old, new);
+            }
+        }
+        let mut title = title.trim();
+        for &strip in STRIP_SUFFIX {
+            title = title.strip_suffix(strip).unwrap_or(title).trim();
+        }
+        WHITE_SPACE_REGEX.replace_all(title, " ").trim().to_owned()
     }
-    let mut title = title.trim();
-    for &strip_suff in STRIP_SUFFIX {
-        title = title.strip_suffix(strip_suff).unwrap_or(title).trim();
-    }
-    WHITE_SPACE_REGEX.replace_all(title, " ").into_owned()
 }
 
 #[cfg(test)]
@@ -74,5 +89,6 @@ mod test {
         println!("{}", fix_title("Whos Your Daddy Watch Online – Episode 12"));
         println!("{}", fix_title("Whos Your Daddy   Watch Online – "));
         println!("{}", fix_title("&amp; TV Shows"));
+        println!("{}", fix_title("Naagini 10th September 2022&nbsp;"));
     }
 }

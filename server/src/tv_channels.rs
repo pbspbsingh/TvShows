@@ -212,7 +212,7 @@ fn parse_web_series(html: &str, host: &str) -> Vec<(String, String)> {
 async fn download_tv_shows(url: &str) -> anyhow::Result<Vec<TvShow>> {
     fn parse_tv_show(div: ElementRef, host: &str) -> Option<TvShow> {
         let a = div.select(&s("p.small-title a")).next()?;
-        let title = a.inner_html();
+        let title = fix_title(a.inner_html());
         let url = normalize_url(a.value().attr("href")?, host)
             .ok()?
             .into_owned();
