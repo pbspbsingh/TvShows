@@ -5,10 +5,16 @@ use tokio::time::Instant;
 use tracing::*;
 
 use crate::http_util::{find_host, http_client};
-use crate::tv_episodes::find_iframe;
 use crate::tv_episodes::providers::flash_player::find_source;
 
+use super::find_iframe;
+
 pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, String)> {
+    #[derive(Deserialize, Debug)]
+    struct Source {
+        src: String,
+    }
+
     let start = Instant::now();
     let iframe_src = find_iframe(html, referer)?;
     debug!("Got iframe src: {iframe_src}");
@@ -27,9 +33,4 @@ pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, Str
         start.elapsed().as_millis()
     );
     Ok((vid_src.src, iframe_src))
-}
-
-#[derive(Deserialize, Debug)]
-struct Source {
-    src: String,
 }

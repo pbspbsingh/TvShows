@@ -168,8 +168,9 @@ pub mod download_speed {
 
     #[cfg(test)]
     mod test {
-        use super::bytes_per_second;
         use std::time::Duration;
+
+        use super::bytes_per_second;
 
         #[test]
         fn test_bps() {

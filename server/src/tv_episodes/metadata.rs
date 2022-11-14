@@ -36,10 +36,11 @@ impl VideoProvider {
         let (m3u8_url, referer) = match self {
             VideoProvider::TVLogy => tv_logy::find_m3u8(&html, link).await?,
             VideoProvider::FlashPlayer => flash_player::find_m3u8(&html, link).await?,
-            VideoProvider::DailyMotion | VideoProvider::NetflixPlayer => {
-                dailymotion::find_m3u8(&html, link).await?
-            }
-            VideoProvider::Speed | VideoProvider::Vkprime => speed::find_mp4(&html, link).await?,
+            VideoProvider::DailyMotion => dailymotion::find_m3u8(&html, link).await?,
+            VideoProvider::NetflixPlayer => dailymotion::find_m3u8(&html, link).await?,
+            VideoProvider::Speed => speed::find_mp4(&html, link).await?,
+            VideoProvider::Vkprime => speed::find_mp4(&html, link).await?,
+            // _ => return Err(anyhow::anyhow!("Not implemented")),
         };
         if self.is_mp4() {
             info!("Found mp4 url: {m3u8_url} with referer: {referer}");

@@ -1504,9 +1504,9 @@ dependencies = [
 
 [[package]]
 name = "seahash"
-version = "0.2.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7e0c66e94736485ca24c242e298d64062a30b8a83c17aedb145748054e75b0a"
+checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "selectors"
@@ -1594,7 +1594,7 @@ dependencies = [
  "mime_guess",
  "once_cell",
  "quick-js",
- "rand 0.7.3",
+ "rand 0.8.5",
  "regex",
  "reqwest",
  "scraper",

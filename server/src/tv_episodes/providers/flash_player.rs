@@ -5,9 +5,15 @@ use tokio::time::Instant;
 use tracing::*;
 
 use crate::http_util::{find_host, http_client};
-use crate::tv_episodes::find_iframe;
+
+use super::find_iframe;
 
 pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, String)> {
+    #[derive(Deserialize, Debug)]
+    struct Source {
+        file: String,
+    }
+
     let start = Instant::now();
     let iframe_src = find_iframe(html, referer)?;
     debug!("Got iframe src: {iframe_src}");
@@ -54,22 +60,3 @@ pub fn find_source(text: &str) -> Option<&str> {
         &text[..=end]
     })
 }
-
-#[derive(Deserialize, Debug)]
-struct Source {
-    file: String,
-}
-
-/*#[cfg(test)]
-mod test {
-    use crate::http_util::http_client;
-
-    #[tokio::test]
-    async fn test_video_url() -> anyhow::Result<()> {
-        let response = http_client()
-            .get("https://jumbo.tvlogy.to/tsfiles/DCABFBBF/480K/2022/FIDCBBDA/03/IAEFACFD/11/AGEBCBFF/99289-050.juicycodes")
-            .send().await;
-        println!("Status: {}", response.is_err());
-        Ok(())
-    }
-}*/

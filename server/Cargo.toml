@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "2.2.1"
+version = "2.3.0"
 edition = "2021"
 
 [lib]
@@ -15,7 +15,7 @@ mimalloc = { version = "*", default-features = false }
 anyhow = "1"
 rand = "0"
 chrono = "0"
-seahash = "0"
+seahash = "4"
 
 tracing = "0"
 tracing-subscriber = { version = "0", features = ["env-filter", "time", "local-time"] }

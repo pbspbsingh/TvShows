@@ -5,8 +5,9 @@ use tokio::time::Instant;
 use tracing::*;
 
 use crate::http_util::{find_host, http_client, normalize_url};
-use crate::tv_episodes::find_iframe;
 use crate::tv_episodes::providers::tv_logy::find_eval;
+
+use super::find_iframe;
 
 pub async fn find_mp4(html: &str, referer: &str) -> anyhow::Result<(String, String)> {
     let start = Instant::now();
@@ -35,8 +36,7 @@ fn eval_script(eval_script: &str) -> anyhow::Result<String> {
     let context = Context::builder().console(console::LogConsole).build()?;
     context.eval(PRELUDE)?;
     context.eval(eval_script)?;
-    let video_url = context.eval_as::<String>("source")?;
-    Ok(video_url)
+    Ok(context.eval_as("source")?)
 }
 
 const PRELUDE: &str = r"

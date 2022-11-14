@@ -1,10 +1,10 @@
 use anyhow::Context;
-
-use crate::utils::set_cache_folder;
 use axum::routing::{any, get};
 use axum::{Router, Server};
 use tower_http::trace::TraceLayer;
 use tracing::*;
+
+use crate::utils::set_cache_folder;
 
 mod cleanup;
 mod error;

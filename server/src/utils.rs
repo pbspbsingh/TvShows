@@ -26,6 +26,7 @@ pub fn cache_folder() -> &'static str {
     CACHE_FOLDER.get().map(|s| s as &str).unwrap_or("cache")
 }
 
+#[allow(deprecated)]
 pub fn expiry_time() -> SystemTime {
     let now = Local::now().naive_local();
     let expiry_time = NaiveDate::from_ymd(now.year(), now.month(), now.day()).and_hms(1, 30, 0);
