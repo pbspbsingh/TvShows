@@ -18,12 +18,8 @@ impl VideoProvider {
         debug!("Loading metadata of {self:?}:{link}");
         let hsh = hash(link);
         let metadata_file = PathBuf::from(cache_folder()).join(&hsh).join(METADATA_FILE);
-        if metadata_file.exists() {
-            return if self.is_mp4() {
-                Ok(fs::read_to_string(metadata_file).await?)
-            } else {
-                metadata_url(&metadata_file)
-            };
+        if !self.is_mp4() && metadata_file.exists() {
+            return metadata_url(&metadata_file);
         }
         debug!("{metadata_file:?} doesn't exist");
         let html = http_client()
@@ -46,10 +42,6 @@ impl VideoProvider {
             info!("Found mp4 url: {m3u8_url} with referer: {referer}");
             let url = encode_uri_component(m3u8_url);
             let url = format!("/media?is_mp4=true&hash={hsh}&url={url}");
-
-            fs::create_dir_all(metadata_file.parent().unwrap()).await?;
-            fs::write(metadata_file, &url).await?;
-
             Ok(url)
         } else {
             info!("Found M3U8 url: {m3u8_url} with referer: {referer}");

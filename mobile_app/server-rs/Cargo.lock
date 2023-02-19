@@ -1579,7 +1579,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1594,7 +1594,7 @@ dependencies = [
  "mime_guess",
  "once_cell",
  "quick-js",
- "rand 0.8.5",
+ "rand 0.7.3",
  "regex",
  "reqwest",
  "scraper",

@@ -37,7 +37,7 @@ pub fn expiry_time() -> SystemTime {
 
 pub fn hash(input: impl AsRef<[u8]>) -> String {
     let hash_val = seahash::hash(input.as_ref());
-    format!("{:x}", hash_val)
+    format!("{hash_val:x}")
 }
 
 pub fn encode_uri_component(input: impl AsRef<[u8]>) -> String {
