@@ -44,8 +44,8 @@ static ALLOWED_HEADERS: Lazy<HashSet<String>> = Lazy::new(|| {
 });
 
 pub async fn media(
-    request: Request<Body>,
     Query(params): Query<HashMap<String, String>>,
+    request: Request<Body>,
 ) -> Result<impl IntoResponse, HttpError> {
     debug!(
         "{} media, headers= {:?} query params= {:?}",

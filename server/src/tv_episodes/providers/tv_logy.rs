@@ -1,4 +1,6 @@
 use anyhow::anyhow;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use quick_js::{console, Context};
 use reqwest::header;
 use serde::Deserialize;
@@ -71,7 +73,8 @@ fn eval_script(eval_script: &str) -> anyhow::Result<(String, String, String)> {
     let video_url = context.eval_as::<String>("videoUrl")?;
     let server = context.eval_as::<String>("videoServer")?;
     let disk = context.eval_as::<String>("videoDisk")?;
-    Ok((video_url, server, base64::encode(disk)))
+
+    Ok((video_url, server, STANDARD.encode(disk)))
 }
 
 pub fn find_eval(html: &str) -> Option<&str> {
