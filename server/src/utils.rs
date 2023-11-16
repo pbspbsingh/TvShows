@@ -15,6 +15,7 @@ pub const EXPIRY: StdDuration = StdDuration::from_secs(2 * 24 * 60 * 60);
 static CACHE_FOLDER: OnceCell<String> = OnceCell::new();
 
 pub fn set_cache_folder(folder: &str) -> anyhow::Result<()> {
+    std::fs::create_dir_all(folder)?;
     CACHE_FOLDER
         .set(folder.to_owned())
         .map_err(|_| anyhow::anyhow!("Failed to init the cache folder: {folder}"))?;

@@ -6,6 +6,7 @@ use tracing::*;
 
 use crate::utils::set_cache_folder;
 
+mod channel_logo;
 mod cleanup;
 mod error;
 mod file;
@@ -57,6 +58,7 @@ async fn _start_server(port: u16) -> anyhow::Result<()> {
             get(tv_episodes::get_metadata),
         )
         .route("/media", any(media::media))
+        .route("/logo/:tv_channel", get(channel_logo::logo))
         .fallback(get(file::static_assets))
         .layer(TraceLayer::new_for_http());
 

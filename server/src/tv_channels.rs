@@ -20,7 +20,7 @@ const NO_OF_CHANNEL_ROWS: usize = 2;
 
 const BANNED_CHANNELS: &[&str] = &["Star Jalsha", "Star Pravah", "Star Vijay", "Bindass TV"];
 
-const NO_ICON: &str =
+pub const NO_ICON: &str =
     "https://www.yodesitv.info/wp-content/uploads/2016/11/no-thumbnail-370x208.jpg";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
