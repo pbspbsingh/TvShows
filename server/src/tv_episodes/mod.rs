@@ -7,7 +7,7 @@ use anyhow::{anyhow, Context};
 use axum::extract::Path;
 use axum::response::IntoResponse;
 use axum::Json;
-use futures::{stream, StreamExt};
+use futures::{stream, StreamExt, TryStreamExt};
 use tracing::*;
 
 use crate::error::HttpError;
@@ -33,44 +33,44 @@ pub async fn episode_parts(
         .ok_or_else(|| {
             anyhow!("Couldn't find TvEpisodes with {tv_channel} > {tv_show} > {episode}")
         })?;
-    let n = episode_parts.len();
-    let mut parts_stream = stream::iter(episode_parts)
-        .map(|Episode { provider, links }| async move {
-            let mut result = Vec::with_capacity(links.len());
-            for (title, link) in links {
-                let metadata = provider
+
+    let mut episode_error = None;
+    for Episode { provider, links } in episode_parts {
+        let parts_num = links.len();
+        let metadata_result = stream::iter(links)
+            .map(|(title, link)| async move {
+                provider
                     .fetch_metadata(&link)
                     .await
-                    .with_context(|| format!("'{title}': {provider:?} => {link}"))?;
-                result.push((title, metadata));
-            }
-            let title = result
-                .first()
-                .map(|(title, _)| title.as_str())
-                .unwrap_or("NA");
-            info!("Successfully downloaded '{title}' via '{provider:?}'");
-            Ok::<_, anyhow::Error>(result)
-        })
-        .buffer_unordered(n);
-    while let Some(result) = parts_stream.next().await {
-        match result {
-            Err(e) => {
-                warn!("Resolving metadata failed: {e:?}");
-            }
+                    .with_context(|| format!("'{title}': {provider:?} => {link}"))
+                    .map(|meta_url| (title, meta_url))
+            })
+            .buffered(parts_num)
+            .try_collect::<Vec<_>>()
+            .await;
+        match metadata_result {
             Ok(result) => {
                 info!(
-                    "Time taken to load parts: {}ms",
-                    start.elapsed().as_millis()
+                    "Successfully loaded episode parts via '{:?}' in {:?}",
+                    provider,
+                    start.elapsed()
                 );
                 return Ok(Json(result));
             }
-        };
+            Err(e) => {
+                warn!("Failed to load episode parts: {e:?}");
+                episode_error = Some(e);
+            }
+        }
     }
     error!(
-        "Time taken for failed attempt to load parts: {}ms",
-        start.elapsed().as_millis()
+        "Time taken for failed attempt to load parts: {:?}",
+        start.elapsed()
     );
-    Err(anyhow!("Failed to load {tv_channel} > {tv_show} > {episode}").into())
+    let error = episode_error
+        .map(|e| anyhow!("Failed to load {tv_channel} > {tv_show} > {episode}: {e:?}"))
+        .unwrap_or_else(|| anyhow!("Failed to load {tv_channel} > {tv_show} > {episode}"));
+    Err(error.into())
 }
 
 pub async fn get_metadata(

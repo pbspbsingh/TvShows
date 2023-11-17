@@ -28,9 +28,6 @@ pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, Str
     let vid_src =
         find_source(&html).ok_or_else(|| anyhow!("Failed to find video source in {iframe_src}"))?;
     let vid_src = serde_json::from_str::<Source>(vid_src)?;
-    info!(
-        "Time taken to resolve DailyMotion: {}",
-        start.elapsed().as_millis()
-    );
+    info!("Time taken to resolve DailyMotion: {:?}", start.elapsed());
     Ok((vid_src.src, iframe_src))
 }

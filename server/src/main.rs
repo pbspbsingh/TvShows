@@ -12,7 +12,8 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 const RUST_LOG: &str = "RUST_LOG";
 
-const DEFAULT_LOG_LEVEL: &str = "warn,tv_shows_server=debug,tower_http=info,hyper=info";
+const DEFAULT_LOG_LEVEL: &str =
+    "warn,tv_shows_server=debug,cloudflare_resolver=debug,tower_http=info,hyper=info";
 
 fn main() {
     if env::var_os(RUST_LOG).is_none() {

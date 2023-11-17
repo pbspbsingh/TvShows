@@ -41,10 +41,7 @@ pub async fn channel_home() -> Result<impl IntoResponse, HttpError> {
             let start = Instant::now();
             let tv_channels = download_tv_channels().await?;
             state.update_state(tv_channels.iter()).await?;
-            info!(
-                "Time taken to download the tv shows: {}",
-                start.elapsed().as_millis()
-            );
+            info!("Time taken to download the tv shows: {:?}", start.elapsed());
             Ok(tv_channels)
         }
     }

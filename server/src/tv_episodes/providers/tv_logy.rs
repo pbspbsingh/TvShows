@@ -25,10 +25,7 @@ pub async fn find_m3u8(html: &str, referer: &str) -> anyhow::Result<(String, Str
             tv_logy_v1(&iframe_src, referer).await?
         }
     };
-    info!(
-        "Time taken to resolve TVLogy: {}",
-        start.elapsed().as_millis()
-    );
+    info!("Time taken to resolve TVLogy: {:?}", start.elapsed());
     Ok((m3u8_url, iframe_src))
 }
 

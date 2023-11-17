@@ -63,10 +63,12 @@ impl ResolverInner {
     }
 
     async fn resolve_ips(&self, name: &Name, dns_type: &str) -> Result<Vec<IpAddr>, String> {
-        if let Some(cached) = self.cache.get(&name) {
+        if let Some(cached) = self.cache.get(name) {
             if cached.expires_at >= Instant::now() {
                 log::debug!("Cache hit: {name} => {:?}", cached.addrs);
                 return Ok(cached.addrs.clone());
+            } else {
+                log::warn!("Dns entries for {name} expired");
             }
         }
 
@@ -96,7 +98,7 @@ impl ResolverInner {
         self.cache.insert(
             name.clone(),
             CachedNames {
-                expires_at: Instant::now() + Duration::from_secs(ttl as u64),
+                expires_at: Instant::now() + Duration::from_secs(ttl.max(60) as u64),
                 addrs: addrs.clone(),
             },
         );

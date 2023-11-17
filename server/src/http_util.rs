@@ -21,7 +21,7 @@ static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
         .use_rustls_tls()
         .danger_accept_invalid_certs(true)
         .dns_resolver(Arc::new(CloudflareResolver::new()))
-        .connect_timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(60))
         .build()
         .unwrap()
 });

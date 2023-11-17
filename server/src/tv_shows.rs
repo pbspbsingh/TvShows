@@ -141,10 +141,7 @@ pub async fn episodes(
     let response = receiver
         .await
         .map_err(|_| anyhow!("Failed to receive the response from download queue"))?;
-    info!(
-        "Time taken to serve episodes: {}",
-        start.elapsed().as_millis()
-    );
+    info!("Time taken to serve episodes: {:?}", start.elapsed());
     Ok(Json(response.to_res()))
 }
 

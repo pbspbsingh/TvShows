@@ -22,10 +22,7 @@ pub async fn find_mp4(html: &str, referer: &str) -> anyhow::Result<(String, Stri
         .await?;
     let eval_src = find_eval(&html).ok_or_else(|| anyhow!("Couldn't find eval script"))?;
     let video_src = eval_script(eval_src)?;
-    info!(
-        "Time taken to resolve Speed: {}",
-        start.elapsed().as_millis()
-    );
+    info!("Time taken to resolve Speed: {:?}", start.elapsed());
     Ok((
         normalize_url(&video_src, &iframe_src)?.into_owned(),
         iframe_src,
