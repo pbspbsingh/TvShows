@@ -1,6 +1,9 @@
 use std::borrow::Cow;
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::anyhow;
+use cloudflare_resolver::CloudflareResolver;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use scraper::Selector;
@@ -9,7 +12,7 @@ use url::{ParseError, Url};
 pub const PARALLELISM: usize = 8;
 
 pub const USER_AGENT: &str =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:107.0) Gecko/20100101 Firefox/107.0";
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/119.0";
 
 static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     Client::builder()
@@ -17,6 +20,8 @@ static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
         .cookie_store(true)
         .use_rustls_tls()
         .danger_accept_invalid_certs(true)
+        .dns_resolver(Arc::new(CloudflareResolver::new()))
+        .connect_timeout(Duration::from_secs(30))
         .build()
         .unwrap()
 });
