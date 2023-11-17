@@ -36,7 +36,7 @@ impl VideoProvider {
             VideoProvider::NetflixPlayer => dailymotion::find_m3u8(&html, link).await?,
             VideoProvider::Speed => speed::find_mp4(&html, link).await?,
             VideoProvider::Vkprime => speed::find_mp4(&html, link).await?,
-            // _ => return Err(anyhow::anyhow!("Not implemented")),
+            // provider => return Err(anyhow::anyhow!("{provider:?} not implemented")),
         };
         if self.is_mp4() {
             info!("Found mp4 url: {m3u8_url} with referer: {referer}");
@@ -62,7 +62,7 @@ impl VideoProvider {
                 .await?
                 .text()
                 .await?;
-            let m3u8_content = convert_m3u8(&m3u8_content, &video_url, &hsh)?;
+            let m3u8_content = convert_m3u8(&m3u8_content, &video_url, &referer, &hsh)?;
             fs::create_dir_all(metadata_file.parent().unwrap()).await?;
             fs::write(&metadata_file, m3u8_content).await?;
 
@@ -94,7 +94,8 @@ fn find_best_video_url(m3u8: &str, host_url: &str) -> anyhow::Result<String> {
     Err(anyhow!("Couldn't parse M3U8 content: '{m3u8}'"))
 }
 
-fn convert_m3u8(m3u8: &str, host_url: &str, hash: &str) -> anyhow::Result<String> {
+fn convert_m3u8(m3u8: &str, host_url: &str, referer: &str, hash: &str) -> anyhow::Result<String> {
+    let referer = encode_uri_component(referer);
     let mut result = Vec::new();
     let mut itr = m3u8.split('\n');
     while let Some(line) = itr.next() {
@@ -105,7 +106,7 @@ fn convert_m3u8(m3u8: &str, host_url: &str, hash: &str) -> anyhow::Result<String
                 .ok_or_else(|| anyhow!("Missing next line after 'EXTINF'"))?;
             let url = normalize_url(next_line, host_url)?;
             let url = encode_uri_component(&*url);
-            result.push(format!("/media?hash={hash}&url={url}"));
+            result.push(format!("/media?hash={hash}&url={url}&referer={referer}"));
         }
     }
     Ok(result.join("\n"))

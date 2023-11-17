@@ -56,9 +56,13 @@ pub async fn media(
     let url = params
         .get("url")
         .ok_or_else(|| anyhow!("No url found in query params"))?;
-    info!("{}: {}", request.method(), url);
+    let referer = params.get("referer");
+    info!("{}: {} [Referer:{:?}]", request.method(), url, referer);
 
     let mut req = http_client().request(request.method().clone(), url);
+    if let Some(referer) = referer {
+        req = req.header(header::REFERER, referer);
+    }
     for (key, val) in request.headers() {
         if ALLOWED_HEADERS.contains(&key.as_str().to_lowercase()) {
             req = req.header(key, val);
