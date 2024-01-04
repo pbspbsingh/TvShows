@@ -1,37 +1,46 @@
-use dashmap::DashMap;
+use crate::resolver_inner::DnsType;
+use default_net::Gateway;
+use hyper::client::connect::dns::Name;
+use log::*;
+use reqwest::dns::{Resolve, Resolving};
+use resolver_inner::ResolverInner;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use hyper::client::connect::dns::Name;
-use hyper::header;
-use reqwest::dns::{Resolve, Resolving};
-use reqwest::Client;
-
-use crate::response::Response;
-
+mod resolver_inner;
 mod response;
 
-pub struct CloudflareResolver(Arc<ResolverInner>);
+pub struct CloudflareResolver {
+    resolver: Arc<ResolverInner>,
+    dns_type_order: [DnsType; 2],
+}
 
 impl CloudflareResolver {
     pub fn new() -> Self {
-        CloudflareResolver(Arc::new(ResolverInner::new()))
+        CloudflareResolver {
+            resolver: Arc::new(ResolverInner::new()),
+            dns_type_order: dns_type_order(),
+        }
     }
 }
 
 impl Resolve for CloudflareResolver {
     fn resolve(&self, name: Name) -> Resolving {
-        let resolver = self.0.clone();
+        let dns_type_order = self.dns_type_order;
+        let resolver = self.resolver.clone();
         Box::pin(async move {
-            match resolver.resolve_ips(&name, "AAAA").await {
-                Ok(ips) => return Ok(box_it(ips)),
-                Err(e) => {
-                    log::warn!("Failed to resolve IPv6 for {name}: {e:?}");
+            let mut err = None;
+            for dns_type in dns_type_order {
+                match resolver.resolve_ips(name.clone(), dns_type).await {
+                    Ok(ips) => return Ok(box_it(ips)),
+                    Err(e) => {
+                        warn!("Failed to resolve DNS for {name}/{dns_type}: {e:?}");
+                        err = Some(e);
+                    }
                 }
             }
-
-            Ok(box_it(resolver.resolve_ips(&name, "A").await?))
+            let default_err = || format!("DNS resolution error for {name}");
+            Err(err.unwrap_or_else(default_err).into())
         })
     }
 }
@@ -40,71 +49,21 @@ fn box_it(itr: Vec<IpAddr>) -> Box<dyn Iterator<Item = SocketAddr> + Send> {
     Box::new(itr.into_iter().map(|addr| SocketAddr::new(addr, 80)))
 }
 
-struct ResolverInner {
-    client: Client,
-    cache: DashMap<Name, CachedNames>,
-}
-
-struct CachedNames {
-    expires_at: Instant,
-    addrs: Vec<IpAddr>,
-}
-
-impl ResolverInner {
-    pub fn new() -> Self {
-        let duration = Duration::from_secs(5);
-        let client = Client::builder()
-            .connect_timeout(duration)
-            .timeout(duration)
-            .build()
-            .expect("Failed to build http client");
-        let cache = DashMap::new();
-        Self { client, cache }
-    }
-
-    async fn resolve_ips(&self, name: &Name, dns_type: &str) -> Result<Vec<IpAddr>, String> {
-        if let Some(cached) = self.cache.get(name) {
-            if cached.expires_at >= Instant::now() {
-                log::debug!("Cache hit: {name} => {:?}", cached.addrs);
-                return Ok(cached.addrs.clone());
+fn dns_type_order() -> [DnsType; 2] {
+    match default_net::get_default_gateway() {
+        Ok(Gateway { ip_addr, .. }) => {
+            if matches!(ip_addr, IpAddr::V4(_)) {
+                info!("Default gateway is IPv4.");
+                return [DnsType::A, DnsType::AAAA];
             } else {
-                log::warn!("Dns entries for {name} expired");
+                info!("Default gateway is IPv6.");
             }
         }
-
-        let start = Instant::now();
-        let doh_url = format!("https://cloudflare-dns.com/dns-query?name={name}&type={dns_type}");
-        let request = self
-            .client
-            .get(&doh_url)
-            .header(header::ACCEPT, "application/dns-json")
-            .send();
-        let response = request
-            .await
-            .map_err(|e| format!("DNS request failed {name}: {e:?}"))?
-            .json::<Response>()
-            .await
-            .map_err(|e| format!("Parsing dns response failed for {name}: {e:?}"))?;
-        let (addrs, ttl) = response.resolve();
-        log::info!(
-            "DNS {name} => {addrs:?}, expires after {ttl}s, fetched in {}ms",
-            start.elapsed().as_millis()
-        );
-
-        if addrs.is_empty() {
-            return Err(format!("Failed to fetch dns for {name}").into());
+        Err(e) => {
+            warn!("Failed to get the default gateway: {e}");
         }
-
-        self.cache.insert(
-            name.clone(),
-            CachedNames {
-                expires_at: Instant::now() + Duration::from_secs(ttl.max(60) as u64),
-                addrs: addrs.clone(),
-            },
-        );
-
-        Ok(addrs)
-    }
+    };
+    [DnsType::AAAA, DnsType::A]
 }
 
 #[cfg(test)]

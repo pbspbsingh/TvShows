@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
+use log::*;
 use serde::Deserialize;
 
 const A: u16 = 1;
-const CNAME: u16 = 5;
 const AAAA: u16 = 28;
+const CNAME: u16 = 5;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Response {
@@ -50,7 +51,7 @@ impl Response {
         let mut addrs = Vec::with_capacity(names.len());
         while let Some(name) = stack.pop() {
             let Some(answers) = names.remove(name) else {
-                eprintln!("No name found for {name} in {names:?}");
+                error!("No name found for {name} in {names:?}");
                 continue;
             };
             for answer in answers {
@@ -64,10 +65,12 @@ impl Response {
                             addrs.push(addr);
                         }
                         Err(_) => {
-                            eprintln!("IpAddr parsing error {answer:?}");
+                            error!("IpAddr parsing error {answer:?}");
                         }
                     },
-                    _ => { /* I don't know what to do */ }
+                    unexpected => {
+                        error!("Unexpected dns type: {unexpected} in {answer:?}");
+                    }
                 }
             }
         }

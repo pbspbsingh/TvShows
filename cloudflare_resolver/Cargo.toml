@@ -5,11 +5,13 @@ edition = "2021"
 
 
 [dependencies]
-hyper = "*"
-reqwest = { version = "*", features = ["json"] }
-serde = { version = "*" , features = ["derive"]}
+hyper = "0.14"
+reqwest = { version = "*", default-features = false, features = ["json", "rustls-tls"] }
+
+serde = { version = "*", features = ["derive"] }
 dashmap = "5"
 log = "*"
+default-net = "0.21"
 
 [dev-dependencies]
-tokio = { version = "1.34.0", features = ["full"] }
+tokio = { version = "1", features = ["full"] }

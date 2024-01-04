@@ -31,8 +31,7 @@ pub fn start_server(
         .enable_all()
         .build()?;
     info!(
-        "Created tokio runtime with {} async-workers & {} blocking-workers",
-        async_threads, io_threads,
+        "Created tokio runtime with {async_threads} async-workers & {io_threads} blocking-workers"
     );
     rt.block_on(_start_server(port))?;
     Ok(())
