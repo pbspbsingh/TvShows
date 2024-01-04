@@ -13,6 +13,7 @@ use crate::error::HttpError;
 use crate::http_util::{http_client, normalize_url, s, PARALLELISM};
 use crate::models::TvShow;
 use crate::utils::{encode_uri_component, fix_title};
+use crate::worker;
 
 pub const DESI_TV: &str = "https://www.yodesitv.info";
 
@@ -48,7 +49,7 @@ pub async fn channel_home() -> Result<impl IntoResponse, HttpError> {
 
     state::init().await;
 
-    let channels = _channel_home().await?;
+    let channels = worker::run(_channel_home()).await?;
     let response = channels
         .into_iter()
         .map(|(title, tv_shows)| {
@@ -329,22 +330,24 @@ mod state {
     pub async fn init() {
         if STATE.get().is_none() {
             let file = PathBuf::from(cache_folder()).join(TV_CHANNEL_FILE);
-            let tv_channels = match fs::read_to_string(&file).await.and_then(|content| {
-                serde_json::from_str::<TvChannelState>(&content)
-                    .map_err(|_| std::io::ErrorKind::InvalidData.into())
-            }) {
-                Ok(state) => state,
-                Err(e) => {
+            let mut file_read_error = false;
+            let tv_channels = fs::read_to_string(&file)
+                .await
+                .and_then(|content| {
+                    serde_json::from_str::<TvChannelState>(&content)
+                        .map_err(|_| std::io::ErrorKind::InvalidData.into())
+                })
+                .unwrap_or_else(|e| {
                     warn!("Couldn't deserialize {file:?}: {e}");
-                    if file.exists() {
-                        fs::remove_file(&file).await.ok();
-                    }
+                    file_read_error = true;
                     TvChannelState {
                         channels: LinkedHashMap::new(),
                         expires_at: SystemTime::now(),
                     }
-                }
-            };
+                });
+            if file_read_error && file.exists() {
+                fs::remove_file(&file).await.ok();
+            }
             STATE
                 .set(TvChannelStateWrapper(RwLock::new(tv_channels)))
                 .map_err(|_| error!("Duh, couldn't set the state once_cell"))

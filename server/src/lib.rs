@@ -17,6 +17,7 @@ mod tv_channels;
 mod tv_episodes;
 mod tv_shows;
 mod utils;
+mod worker;
 
 pub fn start_server(
     cache_dir: &str,
@@ -41,6 +42,7 @@ async fn _start_server(port: u16) -> anyhow::Result<()> {
     let address = ([0, 0, 0, 0], port).into();
     info!("Listing for http requests at '{address}'");
 
+    tokio::spawn(worker::init_worker());
     tokio::spawn(tv_shows::init_tv_shows());
     tokio::spawn(cleanup::start_cleanup());
 
