@@ -42,7 +42,6 @@ async fn _start_server(port: u16) -> anyhow::Result<()> {
     info!("Listing for http requests at '{address}'");
 
     tokio::spawn(tv_shows::init_tv_shows());
-    tokio::spawn(media::download_speed::init());
     tokio::spawn(cleanup::start_cleanup());
 
     let app = Router::new()

@@ -92,9 +92,7 @@ async fn response_to_body(mut response: reqwest::Response) -> anyhow::Result<Res
 
     let (sender, receiver) = mpsc::channel(CHANNEL_BUFFER);
     tokio::spawn(async move {
-        let download_speed = download_speed::SENDER.get();
         while let Ok(Some(bytes)) = response.chunk().await {
-            download_speed.and_then(|s| s.send(bytes.len()).ok());
             if sender.send(bytes).await.is_err() {
                 break;
             }
@@ -109,82 +107,4 @@ fn body_stream(
     Box::new(stream::unfold(receiver, |mut receiver| async move {
         receiver.recv().await.map(|bytes| (Ok(bytes), receiver))
     }))
-}
-
-pub mod download_speed {
-    use std::time::Duration;
-
-    use once_cell::sync::OnceCell;
-    use tokio::sync::mpsc::{self, UnboundedSender};
-    use tokio::time::{self, Instant};
-    use tracing::info;
-
-    pub(super) static SENDER: OnceCell<UnboundedSender<usize>> = OnceCell::new();
-
-    const WAIT_TIME: Duration = Duration::from_secs(5);
-
-    pub async fn init() {
-        let (sender, mut receiver) = mpsc::unbounded_channel::<usize>();
-        SENDER
-            .set(sender)
-            .expect("Failed to initialize download speed sender");
-
-        let (mut start, mut total_bytes) = (Instant::now(), 0);
-        while let Some(bytes) = time::timeout_at(start + WAIT_TIME, receiver.recv())
-            .await
-            .unwrap_or(Some(0))
-        {
-            total_bytes += bytes;
-            let elapsed = start.elapsed();
-            if elapsed >= WAIT_TIME {
-                if total_bytes > 0 {
-                    info!("Download speed: {}", bytes_per_second(total_bytes, elapsed));
-                }
-                (start, total_bytes) = (Instant::now(), 0);
-            }
-        }
-    }
-
-    fn bytes_per_second(bytes_count: usize, elapsed: Duration) -> String {
-        const KB: f64 = 1024.;
-        const MB: f64 = KB * KB;
-
-        let millis = elapsed.as_millis();
-        let bytes_count = bytes_count as f64;
-        let bps = (bytes_count * 1000.) / (millis as f64);
-
-        let data = if bytes_count >= MB {
-            format!("{:.2}MB", bytes_count / MB)
-        } else if bytes_count >= KB {
-            format!("{:.2}KB", bytes_count / KB)
-        } else {
-            format!("{:.2}B", bytes_count)
-        };
-        let data_rate = if bps >= MB {
-            format!("{:.2}MB/s", bps / MB)
-        } else if bps >= KB {
-            format!("{:.2}KB/s", bps / KB)
-        } else {
-            format!("{:.2}B/s", bps)
-        };
-        format!("{data} @ {data_rate}")
-    }
-
-    #[cfg(test)]
-    mod test {
-        use std::time::Duration;
-
-        use super::bytes_per_second;
-
-        #[test]
-        fn test_bps() {
-            println!("{}", bytes_per_second(2049000, Duration::from_secs(1)));
-            println!("{}", bytes_per_second(2000, Duration::from_millis(500)));
-            println!(
-                "{}",
-                bytes_per_second(2 * 1024 * 1024, Duration::from_millis(500))
-            );
-            println!("{}", bytes_per_second(2, Duration::from_millis(200)));
-        }
-    }
 }
