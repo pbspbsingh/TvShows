@@ -54,7 +54,7 @@ async fn _logo(logo_url: &str) -> anyhow::Result<Response<Body>> {
     let (mut sender, receiver) = Body::channel();
     tokio::spawn(async move {
         while let Ok(Some(chunk)) = logo_res.chunk().await {
-            if let Err(_) = sender.send_data(chunk).await {
+            if sender.send_data(chunk).await.is_err() {
                 break;
             }
         }

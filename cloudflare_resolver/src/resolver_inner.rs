@@ -13,6 +13,7 @@ pub struct ResolverInner {
     cache: DashMap<Name, CachedNames>,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy)]
 pub enum DnsType {
     A,
@@ -79,7 +80,7 @@ impl ResolverInner {
         info!("DNS {name} => {addrs:?}, expires after {ttl}s, fetched in {elapsed:?}");
 
         if addrs.is_empty() {
-            return Err(format!("Failed to fetch dns for {name}").into());
+            return Err(format!("Failed to fetch dns for {name}"));
         }
 
         let cached_names = CachedNames {

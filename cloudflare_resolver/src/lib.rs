@@ -15,6 +15,12 @@ pub struct CloudflareResolver {
     dns_type_order: [DnsType; 2],
 }
 
+impl Default for CloudflareResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CloudflareResolver {
     pub fn new() -> Self {
         CloudflareResolver {

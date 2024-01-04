@@ -27,7 +27,7 @@ static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
 });
 
 pub fn http_client() -> &'static Client {
-    &*HTTP_CLIENT
+    &HTTP_CLIENT
 }
 
 pub fn s(selector: &str) -> Selector {
@@ -42,7 +42,7 @@ pub fn find_host(url: &str) -> anyhow::Result<String> {
     Ok(format!("{}://{}", parsed.scheme(), host_name))
 }
 
-pub fn normalize_url<'a, 'b>(url: &'a str, host: &'b str) -> anyhow::Result<Cow<'a, str>> {
+pub fn normalize_url<'a>(url: &'a str, host: &str) -> anyhow::Result<Cow<'a, str>> {
     match Url::parse(url) {
         Ok(_) => Ok(Cow::Borrowed(url)),
         Err(ParseError::RelativeUrlWithoutBase) => {
